@@ -1,6 +1,6 @@
 <?php
-	namespace SebastianExtra\Templating\Exception;
+    namespace SebastianExtra\Templating\Exception;
 
-	use Sebastian\Core\Exception\SebastianException;
+    use Sebastian\Core\Exception\SebastianException;
 
-	class RenderException extends SebastianException {}
+    class RenderException extends SebastianException {}
