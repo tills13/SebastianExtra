@@ -121,6 +121,8 @@
             $qf = $qf->where($mEf->getExpression());
             $query = $qf->getQuery();
 
+            print($query); die();
+
             $result = $this->connection->execute($query, []);
 
             $key = $this->cacheManager->generateKey($object);

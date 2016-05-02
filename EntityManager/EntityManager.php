@@ -58,29 +58,36 @@
         }
 
         public function delete($object) {
-            $objects = func_get_args();
-            foreach ($objects as $object) {
-                $class = $this->getBestGuessClass(get_class($object)); // todo verify
-                $repo = $this->getRepository($class);
-                
-                if ($repo) $repo->delete();
+            $connection = $this->getConnection();
+            $connection->beginTransaction();
+
+            try {
+                $repo = $this->getRepository($object);
+                if ($repo) $object = $repo->delete($object);
+
+                $connection->commit();
+            } catch(PDOException $e) {
+                $connection->rollback();
+                throw $e; // rethrow
             }
+
+            return $object;
         }
         
         public function persist($object) {
-            $connect = $this->getConnection();
-            $this->getConnection()->beginTransaction();
+            $connection = $this->getConnection();
+            $connection->beginTransaction();
+
             try {
                 $repo = $this->getRepository($object);
+                if ($repo) $object = $repo->persist($object);
 
-                if ($repo) {
-                    $object = $repo->persist($object);
-                }
+                $connection->commit();
             } catch(PDOException $e) {
-                $this->getConnection()->rollback();
+                $connection->rollback();
+                throw $e; // rethrow
             }
 
-            $this->getConnection()->commit();
             return $object;
         }
 
