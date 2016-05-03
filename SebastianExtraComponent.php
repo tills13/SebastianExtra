@@ -6,6 +6,7 @@
     use Sebastian\Utility\Configuration\Configuration;
 
     use SebastianExtra\EntityManager\EntityManager;
+    use SebastianExtra\Form\FormBuilder;
     use SebastianExtra\Templating\SRender;
 
     class SebastianExtraComponent extends Component {
@@ -26,6 +27,15 @@
 
             if ($config->get('orm.enabled', false)) {
                 $context->entityManager = new EntityManager($context, $config->sub('orm', []));
+            }
+
+            if ($config->get('form.enabled', true)) {
+                $context->formBuilder = new FormBuilder($config->sub('form'));
+                if ($context->get('templating')) {
+                    $context->get('templating')->addMacro('formRow', function($field) {
+                        $field->render();
+                    });
+                }
             }
         }
 

@@ -2,17 +2,20 @@
     namespace SebastianExtra\Templating;
 
     use Sebastian\Core\Context\ContextInterface;
+    use Sebastian\Utility\Collection\Collection;
     use SebastianExtra\Templating\Exception\RenderException;
+    use SebastianExtra\Templating\Macro\SRenderMacroInterface;
 
     class SRender {
         protected $context;
 
         protected $templateDirs;
         protected $validTemplateExtensions = ['.php'];
+        protected $macros;
 
         protected $master;
         protected $blocks;
-        protected $extensions;
+        protected $extends;
 
         protected $blockContext;
         protected $templateContext;
@@ -22,8 +25,19 @@
             $this->templateDirs =  $templateDirs;//__DIR__ . DIRECTORY_SEPARATOR . "templates";
             $this->master = $master;
             $this->blocks = [];
-            $this->extensions = [];
+            $this->extends = [];
             $this->blockContext = [];
+            $this->macros = new Collection();
+        }
+
+        public function __call($method, $arguments = []) {
+            if ($this->macros->has($method)) {
+                $this->macros->get($method)($arguments);//->execute($argmuments);
+            } else throw new RenderException("Macro {$method} does not exist...");
+        }
+
+        public function addMacro($name, Callable $macro) {
+            $this->macros->set($name, $macro);
         }
 
         public function addTemplateDirectories(array $directories = []) {
@@ -78,7 +92,7 @@
                 throw new RenderException("Must specify a template extension", 1);
             }
 
-            $this->extensions[$this->templateContext] = $template;
+            $this->extends[$this->templateContext] = $template;
         }
         
         public function getTemplatePath($template) {
@@ -109,8 +123,8 @@
 
             $rendered = $this->stop();
 
-            if (isset($this->extensions[$template])) {
-                $extend = $this->extensions[$template];
+            if (isset($this->extends[$template])) {
+                $extend = $this->extends[$template];
                 return $this->render($extend, $data);
             }
 

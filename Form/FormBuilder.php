@@ -1,8 +1,9 @@
 <?php
     namespace SebastianExtra\Form;
 
+    use Sebastian\Utility\Configuration\Configuration;
     use SebastianExtra\Constraint\Constraint;
-    use SebastianExtra\Exception\FormBuilderException;
+    use SebastianExtra\Form\Exception\FormBuilderException;
 
     class FormBuilder {
         protected $form;
@@ -40,7 +41,7 @@
             return $this;
         }
 
-        public function add($name, $type, $params) {
+        public function add($name, $type, $params = []) {
             if (!array_key_exists($type, self::$fieldTypes)) {
                 throw new FormBuilderException("Field type {$type} does not exist.");
             }
@@ -64,7 +65,7 @@
          * @param string     $field      the id of the field
          * @param Constraint $constraint a constraint
          */
-        public function addFieldConstraint($field, Constraint $constraint) {
+        public function addFieldConstraint($field, FieldConstraint $constraint) {
             if (!$form->hasField($field)) {
                 throw new FormBuilderException("Form has no {$field} field.");
             }
@@ -80,6 +81,15 @@
          */
         public function attribute($attribute, $value) {
             $this->form->setAttribute($attribute, $value);
+            return $this;
+        }
+
+        public function create($name = null, $defaults = []) {
+            if (!$name || $name == "") {
+                throw new FormBuilderException("Form name cannot be blank.");
+            }
+
+            $this->form = new Form($name);
             return $this;
         }
 
