@@ -80,7 +80,7 @@
          * @param [type] $value     [description]
          */
         public function attribute($attribute, $value) {
-            $this->form->setAttribute($attribute, $value);
+            $this->form->addAttribute($attribute, $value);
             return $this;
         }
 

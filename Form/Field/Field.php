@@ -28,8 +28,26 @@
             $this->attributes = $attributes ?: new Collection();
         }
 
+        public function setAttribute($attribute, $value) {
+            $this->attributes->set($attribute, $value);
+        }
+
         public function getAttributes() {
             return $this->attributes;
+        }
+
+        public function getAttribute($attribute, $default) {
+            return $this->attributes->get($attribute, $default);
+        }
+
+        public function getAttributesString() {
+            $string = "";
+
+            foreach ($this->getAttributes() as $key => $value) {
+                $string .= "{$key}=\"{$value}\"";
+            }
+
+            return $string;
         }
 
         public function addConstraint(FieldConstraint $constraint) {
@@ -62,6 +80,18 @@
 
         public function getForm() {
             return $this->form;
+        }
+
+        public function setId($id) {
+            $this->setAttribute('id', $id);
+        }
+
+        public function getId() {
+            if ($this->attributes->has('id')) {
+                return $this->getAttribute('id');
+            } else {
+                return $this->getName();
+            }
         }
 
         public function setName($name) {

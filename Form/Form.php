@@ -49,6 +49,16 @@
             return $this->attributes;
         }
 
+        public function getAttributesString() {
+            $string = "";
+
+            foreach ($this->getAttributes() as $key => $value) {
+                $string .= "{$key}=\"{$value}\"";
+            }
+
+            return $string;
+        }
+
         public function addConstraint(FormConstraint $constraint) {
             $this->constraints->set(null, $constraint);
         }
@@ -147,7 +157,8 @@
         }
 
         public function start() {
-            return "<form action=\"{$this->getAction()}\" method=\"{$this->getMethod()}\">";
+            $attrs = $this->getAttributesString();
+            return "<form action=\"{$this->getAction()}\" method=\"{$this->getMethod()}\" {$attrs}>";
         }
 
         public function validate() {
