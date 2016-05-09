@@ -90,9 +90,10 @@
         public function extend($template) {
             if ($template == null) {
                 throw new RenderException("Must specify a template extension", 1);
+            } else if (count($this->extends) == 0) {
+                print($this->templateContext);
+                $this->extends[$this->templateContext] = $template;
             }
-
-            $this->extends[$this->templateContext] = $template;
         }
         
         public function getTemplatePath($template) {
