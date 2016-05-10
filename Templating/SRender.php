@@ -32,7 +32,7 @@
 
         public function __call($method, $arguments = []) {
             if ($this->macros->has($method)) {
-                $this->macros->get($method)($arguments);//->execute($argmuments);
+                //$this->macros->get($method)($arguments);//->execute($argmuments);
             } else throw new RenderException("Macro {$method} does not exist...");
         }
 
@@ -60,9 +60,13 @@
 
             if (!$data) {
                 array_push($this->blockContext, $name);
+                if (!isset($this->blocks[$this->templateContext])) {
+                    $this->blocks[$this->templateContext] = [];
+                }
+
                 $this->start();
             } else {
-                $this->blocks[$name] = $data;
+                $this->blocks[$this->templateContext][$name] = $data;
             }
         }
 
@@ -71,29 +75,36 @@
                 throw new RenderException("endBlock called before block", 1);
             }
             
-            $context = array_pop($this->blockContext);
-            $this->blocks[$context] = $this->stop();
+            $name = array_pop($this->blockContext);
+            $this->blocks[$this->templateContext][$name] = $this->stop();
         }
 
         public function embed($block = null, $default = null, $die = true) {
-            if ($die && !isset($this->blocks[$block])) {
+            foreach ($this->blocks as $templateBlocks) {
+                if (isset($templateBlocks[$block])) return $templateBlocks[$block];
+            }
+
+            if ($die) {
                 throw new RenderException("Block {$block} doesn't exist...");
             }
-            
-            return !isset($this->blocks[$block]) ? $default : $this->blocks[$block];
+
+            return $default;
         }
 
-        public function import($template, $data = []) {
-            return $this->render($template, $data);
+        public function import($template, $data = [], $tag = null) {
+            $rendered = $this->render($template, $data, true);
+
+            if (!is_null($tag)) {
+                return $this->blocks[$template][$tag];
+            } else return $rendered;
         }
 
-        public function extend($template) {
+        public function extend($template, $condition = true) {
             if ($template == null) {
                 throw new RenderException("Must specify a template extension", 1);
-            } else if (count($this->extends) == 0) {
-                print($this->templateContext);
-                $this->extends[$this->templateContext] = $template;
-            }
+            } else if (!$condition) return;
+
+            $this->extends[$this->templateContext] = $template;
         }
         
         public function getTemplatePath($template) {
@@ -108,7 +119,7 @@
             throw new RenderException("Template {$template} not found... Checked [{$directories}]", 1); 
         }
 
-        public function render($template, $data = []) {
+        public function render($template, $data = [], $disableExtend = false) {
             $this->templateContext = $template;
             $path = $this->getTemplatePath($template);
 
@@ -119,12 +130,12 @@
             $router = $this->context->getRouter();
             $request = $this->context->getRequest();
             $session = $request->getSession();
-
+            //print ($path);
             include $path;
 
             $rendered = $this->stop();
 
-            if (isset($this->extends[$template])) {
+            if (!$disableExtend && isset($this->extends[$template])) {
                 $extend = $this->extends[$template];
                 return $this->render($extend, $data);
             }
@@ -135,6 +146,8 @@
 
             return $rendered;
         }
+
+        //public function
 
         public function start() {
             ob_start();
