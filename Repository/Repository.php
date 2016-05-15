@@ -130,16 +130,18 @@
         }
 
         public function find($where = [], $options = []) {
-            $where = $where ? $where : [];
-            $mSkeletons = [];
+            $where = $where ?: [];
 
+            $em = $this->entityManager; // convenience
             $qf = QueryFactory::getFactory();
             $ef = ExpressionFactory::getFactory();
 
-            $qf = $qf->select($this->columns)
-                     ->from([$this->aliases[0] => $this->getTable()]);
+            //$qf = $qf->select($this->columns)->from([
+            $qf = $qf->select($this->keys)->from([
+                $this->aliases[0] => $this->getTable()
+            ]);
 
-            foreach ($this->joins as $field => $join) {
+            /*foreach ($this->joins as $field => $join) {
                 $fieldConfig = $this->fields->sub($field);
 
                 if ($fieldConfig->has('targetEntity')) {
@@ -164,7 +166,7 @@
                         ->getExpression();
 
                 $qf = $qf->join(Join::TYPE_LEFT, [$alias => $table], $expression);
-            }
+            }*/
 
             $expression = null;
             foreach ($where as $with => $param) {
@@ -204,13 +206,16 @@
             }
 
             if ($expression) $qf = $qf->where($expression);
+
             if ($options && count($options) != 0) {
                 if (isset($options['limit'])) $qf = $qf->limit($options['limit']);
                 if (isset($options['offset'])) $qf = $qf->offset($options['offset']);
                 if (isset($options['orderBy'])) {
-                    $column = array_pop(array_keys($options['orderBy']));
-                    $direction = $options['orderBy'][$column];
-                    $qf = $qf->orderBy($column, $direction);
+                    foreach ($options['orderBy'] as $field => $direction) {
+                        $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
+                        $column = "{$this->aliases[0]}.{$column}";
+                        $qf = $qf->orderBy($column, $direction);
+                    }
                 }
             }
 
@@ -218,14 +223,20 @@
             $result = $this->connection->execute($query, $query->getBinds());
             $results = $result->fetchAll() ?: [];
 
-            $fields = $this->entityManager->getLocalFields($this->entity);
+            $localFields = $em->getLocalFields($this->entity);
+            $skeletons = []; // list of final objects
 
-            foreach ($results as $mResult) {
-                $skeleton = $this->build(null, $params);
-                //var_dump($skeleton);
+            foreach ($results as $index => $row) {
+                $skeletons[] = $this->get($row);
+            }
 
+
+            
+            //$seenLocalkeys = [];
+
+            /*foreach ($results as $mResult) {
                 foreach ($this->fields as $field => $config) {
-                    if (in_array($field, array_keys($fields))) {
+                    if (in_array($field, array_keys($localFields))) {
                         $key = strtolower($this->entity) . "_" . $this->entityManager->mapFieldToColumn($this->entity, $field);
                         $value = $mResult[$key];
                     } else {
@@ -320,9 +331,9 @@
                 }
                 
                 $mSkeletons[] = $skeleton;
-            }
+            }*/
 
-            return $mSkeletons;
+            return $skeletons;
         }
 
         /**
