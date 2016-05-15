@@ -643,9 +643,12 @@
                     }
                 }
 
-                $object = $this->refresh($object);
+                //$object = $this->refresh($object);
             } else {
-                $changed = $em->computeObjectChanges($object);
+                //$changed = $em->computeObjectChanges($object);
+                //foreach ($changed as $key => $value) {
+                //    # code...
+                //}
             }
 
             $key = $this->cacheManager->generateKey($object);
