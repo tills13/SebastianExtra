@@ -91,7 +91,9 @@
             return $default;
         }
 
-        public function import($template, $data = [], $tag = null) {
+        public function import($template, $data = [], $tag = null, $condition = true) {
+            if (!$condition) return; 
+            
             $rendered = $this->render($template, $data, true);
 
             if (!is_null($tag)) {

@@ -81,6 +81,7 @@
 
             $this->reflection = new \ReflectionClass($this->class);
             $this->columnMap = $this->generateColumnMap();
+            $this->fieldMap = $this->generateFieldMap();
         }
 
         /**
@@ -136,8 +137,12 @@
             $qf = QueryFactory::getFactory();
             $ef = ExpressionFactory::getFactory();
 
+            $keys = array_map(function($field) use ($em) {
+                return $em->mapFieldToColumn($this->entity, $field);
+            }, $this->keys);
+
             //$qf = $qf->select($this->columns)->from([
-            $qf = $qf->select($this->keys)->from([
+            $qf = $qf->select($keys)->from([
                 $this->aliases[0] => $this->getTable()
             ]);
 
@@ -171,7 +176,14 @@
             $expression = null;
             foreach ($where as $with => $param) {
                 if ($param instanceof Expression) {
+                    $ef = $ef->reset()->expr($param);
+                    
+                    if ($expression) {
+                        $mExpression = $ef->getExpression();
+                        $ef = $ef->reset()->with($mExpression)->andExpr($expression);
+                    }
 
+                    $expression = $ef->getExpression();
                 } else {
                     $lhs = "{$this->aliases[0]}.{$with}";
                     $ef = $ef->reset()->expr($lhs);
@@ -226,8 +238,14 @@
             $localFields = $em->getLocalFields($this->entity);
             $skeletons = []; // list of final objects
 
+            //var_dump($this->getFieldMap()); die();
             foreach ($results as $index => $row) {
-                $skeletons[] = $this->get($row);
+                $params = [];
+                foreach ($row as $key => $value) {
+                    $params[$this->getColumnMap()[$key]] = $value;
+                }
+
+                $skeletons[] = $this->get($params);
             }
 
 
@@ -689,6 +707,20 @@
             return $columnMap;
         }
 
+        public function generateFieldMap() {
+            $columnMap = new Collection();
+            $definition = $this->getDefinition();
+
+            foreach ($definition->sub('fields') as $key => $field) {
+                if (!$field->has('column')) $columnMap->set($key, $key);
+                else $columnMap->set($key, $field->get('column'));
+            }
+
+            return $columnMap;
+        }
+
+
+
         public function setFieldValue($object, $fieldName, $value) {
             $useReflection = $this->config->get('use_reflection', false);
             $field = $this->fields->sub($fieldName);
@@ -800,6 +832,10 @@
 
         public function getDefinition() {
             return $this->definition;
+        }
+
+        public function getFieldMap() {
+            return $this->fieldMap;
         }
 
         public function getObjectKeys() {
