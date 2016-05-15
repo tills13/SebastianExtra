@@ -16,9 +16,9 @@
             $this->setWeight(0);
         }
 
-        public function setup() {
+        public function setup(Configuration $config = null) {
             $context = $this->getContext();
-            $config = $this->getConfig();
+            $config = !is_null($config) ? $config->sub('components.sebastian_extra') : $this->getConfig();
             $components = $context->getComponents();
 
             $context->templating = new SRender($this->getContext(), null, array_map(function($component) {

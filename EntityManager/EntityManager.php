@@ -321,14 +321,10 @@
                 $entityInfo = $this->entities[$class];
                 $entity = $entityInfo['entity'];
 
-                $entity = explode(':', $entity);
-                $component = $entity[0];
-                $path = str_replace('/', '\\', $entity[1]);
-                $namespace = $this->context->getNamespace();
-
-                $repoClass = "\\{$namespace}\\{$component}\\{$path}";
-
-                return $repoClass;
+                $component = substr($entity, 0, strpos($entity, ':'));
+                $subNamespace = substr($entity, strpos($entity, ':') + 1);
+                $component = $this->context->getComponent($component);
+                return "{$component->getNamespace()}\\{$subNamespace}";
             } else return null;
         }
 
@@ -391,7 +387,9 @@
                 } else {
                     throw new SebastianException("No repository found for '{$class}'");
                 }
-            } catch (ReflectionException $e) {}
+            } catch (ReflectionException $e) {
+                die($e->getMessage());
+            }
 
             throw new SebastianException("No repository found for '{$class}'");
         }
