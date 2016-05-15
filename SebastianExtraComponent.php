@@ -19,7 +19,7 @@
         public function setup() {
             $context = $this->getContext();
             $config = $this->getConfig();
-            $components = $context->getComponents();
+            $components = $context->getComponents(true);
 
             $context->templating = new SRender($this->getContext(), null, array_map(function($component) {
                 return $component->getResourceUri('views', true);

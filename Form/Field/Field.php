@@ -36,7 +36,7 @@
             return $this->attributes;
         }
 
-        public function getAttribute($attribute, $default) {
+        public function getAttribute($attribute, $default = null) {
             return $this->attributes->get($attribute, $default);
         }
 
