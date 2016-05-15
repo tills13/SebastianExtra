@@ -80,15 +80,20 @@
 
             try {
                 $repo = $this->getRepository($object);
-                if ($repo) $object = $repo->persist($object);
 
-                $connection->commit();
+                if ($repo) {
+                    $object = $repo->persist($object);
+                    $connection->commit();
+                    return $object;
+                    //return $this->refresh($object);
+                } else {
+                    //var_dump($object);
+                    //throw new SebastianException("Repo not found for " . get_class($object));
+                }                
             } catch(PDOException $e) {
                 $connection->rollback();
                 throw $e; // rethrow
             }
-
-            return $object;
         }
 
         /**
@@ -96,14 +101,10 @@
          * @param  Entity $object the entity to refresh
          * @return Entity $object
          */
-        public function refresh() {
-            $objects = func_get_args();
-
-            foreach ($objects as &$object) {
-                $class = $this->getBestGuessClass(get_class($object)); // todo verify
-                $repo = $this->getRepository($class);
-
-                if ($repo) $repo->refresh($object);
+        public function refresh($object) {
+            $repo = $this->getRepository($object);
+            if ($repo) {
+                return $repo->refresh($object);
             }
         }
 
