@@ -1,6 +1,7 @@
 <?php
     namespace SebastianExtra\Form;
 
+    use Sebastian\Core\Entity\EntityInterface;
     use Sebastian\Core\Http\Request;
     use Sebastian\Utility\Collection\Collection;
     use SebastianExtra\Form\Field\FieldInterface;
@@ -130,6 +131,16 @@
         public function bind(Request $request) {
             foreach ($this->getFields() as $field) {
                 $value = $request->get("{$field->getName()}");
+                $field->setValue($value);
+            }
+        }
+
+        public function bindModel(EntityInterface $entity) {
+            foreach ($this->getFields() as $field) {
+                $mField = $field->getName();
+                $mField[0] = strtoupper($mField[0]);
+                $mField = "get{$mField}";
+                $value = $entity->{$mField}();
                 $field->setValue($value);
             }
         }

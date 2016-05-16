@@ -132,7 +132,7 @@
             $router = $this->context->getRouter();
             $request = $this->context->getRequest();
             $session = $request->getSession();
-            //print ($path);
+
             include $path;
 
             $rendered = $this->stop();

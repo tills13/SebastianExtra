@@ -122,8 +122,6 @@
             $qf = $qf->where($mEf->getExpression());
             $query = $qf->getQuery();
 
-            print($query); die();
-
             $result = $this->connection->execute($query, []);
 
             $key = $this->cacheManager->generateKey($object);
@@ -573,6 +571,7 @@
             $qf = QueryFactory::getFactory();
             $mode = Repository::PERSIST_MODE_UPDATE;
             $definition = $this->getDefinition();
+            $connection = $this->getConnection();
 
             foreach ($this->keys as $key) {
                 $value = $this->getFieldValue($object, $key);
@@ -613,8 +612,10 @@
                                     $targetRepo = $this->entityManager->getRepository($value);
                                     $targetField = $join->get('foreign');
 
-                                    $value = $targetRepo->getFieldValue($value, $targetField);
-                                    $qf->insert($column, $value);
+                                    $value = $targetRepo->persist($value);
+                                    $mValue = $targetRepo->getFieldValue($value, $targetField);
+
+                                    $qf->insert($column, $mValue);                                    
                                 }
                             } else {
                                 if (is_array($value)) { // when creating the object, this column can be the id
@@ -640,6 +641,7 @@
                                         $mValue = $targetRepo->persist($mValue);
                                     }
                                 } else {
+                                    // @todo
                                     //$mValue = $mValue[$join->get('foreignColumn')]; // has to be foreign column
                                     //$qf->insert($column, $mValue);
                                 }
@@ -675,12 +677,100 @@
                 //$object = $this->refresh($object);
             } else {
                 //$changed = $em->computeObjectChanges($object);
-                //foreach ($changed as $key => $value) {
-                //    # code...
-                //}
+                $postPersist = [];
+                $localFields = $this->entityManager->getLocalFields($this->entity);
+                $fields = $this->getDefinition()->sub('fields');
+
+                $qf->update($this->getTable());
+
+                foreach ($fields as $field => $fieldConfig) {
+                    $postPersist[$field] = [];
+                    $value = $this->getFieldValue($object, $field);
+                    $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
+
+                    if (in_array($field, array_keys($localFields))) {
+                        if ($value == null || in_array($field, $this->keys)) continue;
+                        $qf->set($column, $value);
+                    } else { // here we attempt pre-persist fields
+                        $join = $fieldConfig->sub('join');
+
+                        if (in_array($join->get('type', 'one'), ['one', 'onetoone', '1:1'])) {
+                            if ($fieldConfig->has('targetEntity')) {
+                                if ($value !== null) {
+                                    $targetRepo = $this->entityManager->getRepository($value);
+                                    $targetField = $join->get('foreign');
+
+                                    $value = $targetRepo->persist($value);
+                                    $mValue = $targetRepo->getFieldValue($value, $targetField);
+
+                                    $qf->set($column, $mValue);                                    
+                                }
+                            } else {
+                                if (is_array($value)) { // when creating the object, this column can be the id
+                                    $value = $value[$join->get('foreignColumn')]; // has to be foreign column
+                                }
+                                
+                                $qf->set($column, $value);
+                            }
+                        } else {
+                            foreach ($value as $index => &$mValue) {
+                                if ($mValue === null) continue;
+
+                                if ($fieldConfig->has('targetEntity')) {
+                                    $targetRepo = $this->entityManager->getRepository($mValue);
+                                    $targetFields = $targetRepo->getDefinition()->sub('fields');
+                                    $targetField = $join->get('foreign');
+
+                                    $targetForeignValue = $targetRepo->getFieldValue($mValue, $targetField);
+                                    $inverse = $this->getFieldValue($object, $join->get('local'));
+
+                                    if ($inverse == null) $postPersist[$field][] = $mValue;
+                                    else {
+                                        $mValue = $targetRepo->persist($mValue);
+                                    }
+                                } else {
+                                    // @todo
+                                    //$mValue = $mValue[$join->get('foreignColumn')]; // has to be foreign column
+                                    //$qf->insert($column, $mValue);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                $ef = ExpressionFactory::getFactory();
+                $mEf = ExpressionFactory::getFactory();
+                foreach ($this->keys as $key) {
+                    $value = $this->getFieldValue($object, $key);
+
+                    $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
+                    $mEf->reset()->expr("{$column}")
+                        ->equals(":{$key}"); // generates the individual expression
+
+                    $qf->bind($key, $value);
+                    $ef->andExpr($mEf->getExpression()); // handles generating the final expression
+                }
+
+                $qf = $qf->where($ef->getExpression());
+
+                $query = $qf->getQuery();
+                //print($query); die();
+                $result = $connection->execute($query, $query->getBinds());
+
+                foreach ($postPersist as $field => $fieldValues) {
+                    $fieldConfig = $fields->sub($field);
+
+                    foreach ($fieldValues as &$fieldValue) {
+                        if ($fieldConfig->has('targetEntity')) {
+                            $targetRepo = $this->entityManager->getRepository($fieldValue);
+                            $fieldValue = $targetRepo->persist($fieldValue);
+                        }
+                    }
+                }
             }
 
             $key = $this->cacheManager->generateKey($object);
+            //var_dump($key); throw \PDOException("asdasd");
             $this->cacheManager->invalidate($key);
             
             return $object;

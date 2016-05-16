@@ -91,7 +91,7 @@
                     //throw new SebastianException("Repo not found for " . get_class($object));
                 }                
             } catch(PDOException $e) {
-                $connection->rollback();
+                $connection->rollback(); die();
                 throw $e; // rethrow
             }
         }
