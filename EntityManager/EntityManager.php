@@ -6,7 +6,7 @@
 
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Context\ContextInterface;
-    use Sebastian\Core\Entity\EntityInterface;
+    use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Exception\SebastianException;
 
     use SebastianExtra\Repository\Repository;

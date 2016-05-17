@@ -1,8 +1,11 @@
 <?php
     namespace SebastianExtra\Form;
 
+    use Sebastian\Core\Context\ContextInterface;
     use Sebastian\Utility\Configuration\Configuration;
+    use Sebastian\Utility\Configuration\Loader\YamlLoader;
     use SebastianExtra\Constraint\Constraint;
+    use SebastianExtra\EntityManager\EntityManager;
     use SebastianExtra\Form\Exception\FormBuilderException;
 
     class FormBuilder {
@@ -18,9 +21,12 @@
             'checkbox' => Field\CheckboxField::class
         ];
 
-        public function __construct(Configuration $config = null) {
+        public function __construct(ContextInterface $context, Configuration $config = null) {
             $this->config = $config ?: new Configuration();
             $this->config->extend([]);
+
+            $this->loader = new YamlLoader($context);
+            $this->cacheManager = $context->getCacheManager();
         }
 
         public function addFieldType($type, $class) {
@@ -84,12 +90,50 @@
             return $this;
         }
 
+        public function bind($modelClass, EntityManager $em) {
+            $this->em = $em;
+            $this->form->setRepository($em->getRepository($modelClass));
+
+            return $this;
+        }
+
         public function create($name = null, $defaults = []) {
             if (!$name || $name == "") {
                 throw new FormBuilderException("Form name cannot be blank.");
             }
 
             $this->form = new Form($name);
+            return $this;
+        }
+
+        public function load($filename) {
+            if ($this->cacheManager && $this->cacheManager->isCached($filename)) {
+                return $this->cacheManager->load($filename);
+            }
+
+            $mConfig = $this->loader->load($filename, 'forms');
+            $name = $mConfig->key();
+
+            if ($name == null) throw new \Exception("asdasd");
+
+            $config = $mConfig->sub($name);
+            $method = $config->get('method', Form::METHOD_POST);
+            $attributes = $config->sub('attributes', []);
+            $fields = $config->sub('fields', []);
+
+            $this->create($name);
+            $this->method($method);
+
+            foreach ($attributes as $key => $value) {
+                $this->attribute($key, $value);
+            }
+
+            foreach ($fields as $name => $config) {
+                $type = $config->get('type');
+                $fieldAttributes = $config->get('attributes', []);
+                $this->add($name, $type, $fieldAttributes);
+            }
+
             return $this;
         }
 
@@ -103,6 +147,10 @@
         }
 
         public function getForm() {
+            if ($this->cacheManager) {
+                
+            }
+
             return $this->form;
         }
     }

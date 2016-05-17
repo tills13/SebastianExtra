@@ -1,10 +1,12 @@
 <?php
     namespace SebastianExtra\Form;
 
-    use Sebastian\Core\Entity\EntityInterface;
+
+    use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Http\Request;
     use Sebastian\Utility\Collection\Collection;
     use SebastianExtra\Form\Field\FieldInterface;
+    use SebastianExtra\Repository\Repository;
 
     class Form {
         const METHOD_GET = "GET";
@@ -13,10 +15,12 @@
         protected $action;
         protected $attributes;
         protected $constraints;
+        protected $entity;
         protected $errors;
         protected $fields;
         protected $method;
         protected $name;
+        protected $repository;
         protected $validated;
 
         public function __construct($name) {           
@@ -76,6 +80,22 @@
             return $this->constraints;
         }
 
+        public function getData() {
+            if ($this->entity) return $this->entity;
+            // todo serialize form
+        }
+
+        /**
+         * sets the forms data
+         * if entity, then bind the entity
+         * if array, then bind the array values
+         * 
+         * @param mixed $data the data to bind to the form
+         */
+        public function setData($data) {
+            // todo
+        }
+
         public function addError(FormError $error) {
             $this->errors->set(null, $error);
         }
@@ -128,19 +148,43 @@
             return $this->name;
         }
 
+        public function setRepository(Repository $repository) {
+            $this->repository = $repository;
+        }
+
+        public function getRepository() : Repository {
+            return $this->repository;
+        }
+
         public function bind(Request $request) {
             foreach ($this->getFields() as $field) {
-                $value = $request->get("{$field->getName()}");
+                $mapped = $field->getAttribute('mapped', true);
+                $mappedField = $field->getAttribute('map') ?? $field->getName();
+
+                if (!is_null($this->entity)) {
+                    $value = $request->get("{$field->getName()}", null);
+                    $value = $mapped ? $value ?? $this->repository->getFieldValue($this->entity, $mappedField)
+                                     : $value; // I think that's right...
+                } else {
+                    $value = $request->get("{$field->getName()}");
+                }
+                
                 $field->setValue($value);
+
+                if (!is_null($this->entity) && !is_null($this->repository) && $mapped) {
+                    $this->entity = $this->repository->setFieldValue($this->entity, $mappedField, $field->getValue());
+                }
             }
         }
 
         public function bindModel(EntityInterface $entity) {
+            $this->entity = $entity;
+
             foreach ($this->getFields() as $field) {
-                $mField = $field->getName();
-                $mField[0] = strtoupper($mField[0]);
-                $mField = "get{$mField}";
-                $value = $entity->{$mField}();
+                if (!$field->getAttribute('mapped', true)) continue;
+
+                $mField = $field->getAttribute('map') ?? $field->getName();
+                $value = $this->repository->getFieldValue($entity, $mField);
                 $field->setValue($value);
             }
         }

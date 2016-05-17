@@ -173,17 +173,19 @@
 
             $expression = null;
             foreach ($where as $with => $param) {
+                $column = $em->mapFieldToColumn($this->entity, $with);
+
                 if ($param instanceof Expression) {
                     $ef = $ef->reset()->expr($param);
                     
                     if ($expression) {
                         $mExpression = $ef->getExpression();
-                        $ef = $ef->reset()->with($mExpression)->andExpr($expression);
+                        $ef = $ef->reset()->expr($mExpression)->andExpr($expression);
                     }
 
                     $expression = $ef->getExpression();
                 } else {
-                    $lhs = "{$this->aliases[0]}.{$with}";
+                    $lhs = "{$this->aliases[0]}.{$column}";
                     $ef = $ef->reset()->expr($lhs);
 
                     if (is_array($param)) {
@@ -202,13 +204,19 @@
                     } else {
                         //$param = "{$this->aliases[$this->entity]}.{$param}";
                         // todo if (is_array $param)
-                        $qf->bind($with, $param);
-                        $ef = $ef->equals(":$with");
+
+                        if (is_bool($param)) {
+                            $ef = $ef->is($param ? "TRUE" : "FALSE");
+                        } else {
+                            $qf->bind($column, $param);
+                            $ef = $ef->equals(":{$column}");
+                        }
                     }
 
                     if ($expression) {
+                        //print ($expression);
                         $mExpression = $ef->getExpression();
-                        $ef = $ef->reset()->with($mExpression)->andExpr($expression);
+                        $ef = $ef->reset()->expr($expression)->andExpr($mExpression);
                     }
 
                     $expression = $ef->getExpression();
@@ -808,8 +816,6 @@
 
             return $columnMap;
         }
-
-
 
         public function setFieldValue($object, $fieldName, $value) {
             $useReflection = $this->config->get('use_reflection', false);

@@ -30,7 +30,11 @@
             }
 
             if ($config->get('form.enabled', true)) {
-                $context->formBuilder = new FormBuilder($config->sub('form'));
+                //$context->formBuilder = function() {
+                 //   print('hello'); die();
+                //};
+
+                $context->formBuilder = new FormBuilder($context, $config->sub('form'));
                 if ($context->get('templating')) {
                     $context->get('templating')->addMacro('formRow', function($field) {
                         $field->render();
