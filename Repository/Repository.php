@@ -598,11 +598,11 @@
                 }
             }
 
-            if ($mode == Repository::PERSIST_MODE_INSERT) {
-                $postPersist = [];
-                $localFields = $this->entityManager->getLocalFields($this->entity);
-                $fields = $this->getDefinition()->sub('fields');
+            $postPersist = [];
+            $localFields = $this->entityManager->getLocalFields($this->entity);
+            $fields = $this->getDefinition()->sub('fields');
 
+            if ($mode == Repository::PERSIST_MODE_INSERT) {
                 foreach ($fields as $field => $fieldConfig) {
                     $postPersist[$field] = [];
                     $value = $this->getFieldValue($object, $field);
@@ -620,7 +620,7 @@
                                     $targetRepo = $this->entityManager->getRepository($value);
                                     $targetField = $join->get('foreign');
 
-                                    $value = $targetRepo->persist($value);
+                                    //$value = $targetRepo->persist($value);
                                     $mValue = $targetRepo->getFieldValue($value, $targetField);
 
                                     $qf->insert($column, $mValue);                                    
@@ -633,7 +633,7 @@
                                 $qf->insert($column, $value);
                             }
                         } else {
-                            foreach ($value as $index => &$mValue) {
+                            foreach ($value ?? [] as $index => &$mValue) {
                                 if ($mValue === null) continue;
 
                                 if ($fieldConfig->has('targetEntity')) {
@@ -646,7 +646,7 @@
 
                                     if ($inverse == null) $postPersist[$field][] = $mValue;
                                     else {
-                                        $mValue = $targetRepo->persist($mValue);
+                                        //$mValue = $targetRepo->persist($mValue);
                                     }
                                 } else {
                                     // @todo
@@ -670,24 +670,8 @@
                 $result = $result->fetch(PDO::FETCH_ASSOC);
 
                 $object = $this->build($object, $result);
-
-                foreach ($postPersist as $field => $fieldValues) {
-                    $fieldConfig = $fields->sub($field);
-
-                    foreach ($fieldValues as &$fieldValue) {
-                        if ($fieldConfig->has('targetEntity')) {
-                            $targetRepo = $this->entityManager->getRepository($fieldValue);
-                            $fieldValue = $targetRepo->persist($fieldValue);
-                        }
-                    }
-                }
-
-                //$object = $this->refresh($object);
             } else {
                 //$changed = $em->computeObjectChanges($object);
-                $postPersist = [];
-                $localFields = $this->entityManager->getLocalFields($this->entity);
-                $fields = $this->getDefinition()->sub('fields');
 
                 $qf->update($this->getTable());
 
@@ -708,7 +692,7 @@
                                     $targetRepo = $this->entityManager->getRepository($value);
                                     $targetField = $join->get('foreign');
 
-                                    $value = $targetRepo->persist($value);
+                                    //$value = $targetRepo->persist($value);
                                     $mValue = $targetRepo->getFieldValue($value, $targetField);
 
                                     $qf->set($column, $mValue);                                    
@@ -734,7 +718,7 @@
 
                                     if ($inverse == null) $postPersist[$field][] = $mValue;
                                     else {
-                                        $mValue = $targetRepo->persist($mValue);
+                                        //$mValue = $targetRepo->persist($mValue);
                                     }
                                 } else {
                                     // @todo
@@ -762,17 +746,16 @@
                 $qf = $qf->where($ef->getExpression());
 
                 $query = $qf->getQuery();
-                //print($query); die();
                 $result = $connection->execute($query, $query->getBinds());
+            }
 
-                foreach ($postPersist as $field => $fieldValues) {
-                    $fieldConfig = $fields->sub($field);
+            foreach ($postPersist as $field => $fieldValues) {
+                $fieldConfig = $fields->sub($field);
 
-                    foreach ($fieldValues as &$fieldValue) {
-                        if ($fieldConfig->has('targetEntity')) {
-                            $targetRepo = $this->entityManager->getRepository($fieldValue);
-                            $fieldValue = $targetRepo->persist($fieldValue);
-                        }
+                foreach ($fieldValues as &$fieldValue) {
+                    if ($fieldConfig->has('targetEntity')) {
+                        $targetRepo = $this->entityManager->getRepository($fieldValue);
+                        $fieldValue = $targetRepo->persist($fieldValue);
                     }
                 }
             }
