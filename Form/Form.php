@@ -162,8 +162,10 @@
                 $mappedField = $field->getAttribute('map') ?? $field->getName();
 
                 if (!is_null($this->entity)) {
-                    $value = $request->get("{$field->getName()}", null);
-                    $value = $mapped ? $value ?? $this->repository->getFieldValue($this->entity, $mappedField)
+                    $value = $request->has("{$field->getName()}") ? $request->get("{$field->getName()}") : false;
+                    $fieldValue = $this->repository->getFieldValue($this->entity, $mappedField);
+
+                    $value = $mapped ? $value ?? ($fieldValue === true) ? false : $fieldValue
                                      : $value; // I think that's right...
                 } else {
                     $value = $request->get("{$field->getName()}");
