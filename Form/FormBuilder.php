@@ -111,7 +111,7 @@
                 return $this->cacheManager->load($filename);
             }
 
-            $mConfig = $this->loader->load($filename, 'forms');
+            $mConfig = $this->loader->load($filename, 'forms'); // todo validate response
             $name = $mConfig->key();
 
             if ($name == null) throw new \Exception("asdasd");

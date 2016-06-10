@@ -21,6 +21,7 @@
         protected $method;
         protected $name;
         protected $repository;
+        protected $submitted;
         protected $validated;
 
         public function __construct($name) {           
@@ -31,6 +32,7 @@
             $this->fields = new Collection();
             $this->method = self::METHOD_GET;
             $this->name = $name;
+            $this->submitted = false;
             $this->validated = false;
         }
 
@@ -156,29 +158,6 @@
             return $this->repository;
         }
 
-        public function bind(Request $request) {
-            foreach ($this->getFields() as $field) {
-                $mapped = $field->getAttribute('mapped', true);
-                $mappedField = $field->getAttribute('map') ?? $field->getName();
-
-                if (!is_null($this->entity)) {
-                    $value = $request->has("{$field->getName()}") ? $request->get("{$field->getName()}") : false;
-                    $fieldValue = $this->repository->getFieldValue($this->entity, $mappedField);
-
-                    $value = $mapped ? $value ?? ($fieldValue === true) ? false : $fieldValue
-                                     : $value; // I think that's right...
-                } else {
-                    $value = $request->get("{$field->getName()}");
-                }
-                
-                $field->setValue($value);
-
-                if (!is_null($this->entity) && !is_null($this->repository) && $mapped) {
-                    $this->entity = $this->repository->setFieldValue($this->entity, $mappedField, $field->getValue());
-                }
-            }
-        }
-
         public function bindModel(EntityInterface $entity) {
             $this->entity = $entity;
 
@@ -205,11 +184,62 @@
         }
 
         public function handleRequest(Request $request) {
-            $this->bind($request);
-            $this->validate();
+            $method = $request->method();
+            $name = $this->getName();
+            $data = [];
+
+            if ($this->getMethod() != $method) {
+                return;
+            }
+
+            if ($method == 'GET' || $method == 'HEAD') {
+                if ($this->getName() == '') {
+                    $data = $request->params;
+                } else {
+                    if (!$request->has($name)) return;
+                    $data = $request->get($name);
+                }
+            } else { // post
+                // todo handle files?
+                if ($this->getName() == '') {
+                    $data = $request->params;
+                } else {
+                    if (!$request->has($name)) return;
+                    $data = $request->get($name);
+                }
+            }
+
+            $this->submit($data);
+        }
+
+        public function isSubmitted() {
+            return $this->isSubmitted;
+        }
+
+        public function submit(array $data = []) {
+            foreach ($this->getFields() as $name => $field) {
+                $isSubmitted = array_key_exists($field->getName(), $data);
+                $mapped = $field->getAttribute('mapped', true);
+                $mappedField = $field->getAttribute('map') ?? $name;
+
+                if (!$isSubmitted && $field instanceof Field\CheckboxField) {
+                    $value = false;
+                } else {
+                    $value = $data["{$field->getName()}"];
+                }
+
+                $field->setValue($value);
+
+                if (!is_null($this->entity) && !is_null($this->repository) && $mapped) {
+                    $this->entity = $this->repository->setFieldValue($this->entity, $mappedField, $field->getValue());
+                }
+            }
+
+            $this->isSubmitted = true;
         }
 
         public function isValid() {
+            return true;
             return $this->validated && $this->getErrors()->count() == 0;
         }
 

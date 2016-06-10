@@ -12,6 +12,6 @@
 
         public function render() {
             $attrs = $this->getAttributesString();
-            return "<input type=\"text\" name=\"{$this->getName()}\" {$attrs} value=\"{$this->getValue()}\">";
+            return "<input type=\"text\" name=\"{$this->getFullName()}\" {$attrs} value=\"{$this->getValue()}\">";
         }
     }

@@ -12,6 +12,6 @@
 
         public function render() {
             $attrs = $this->getAttributesString();
-            return "<textarea type=\"text\" name=\"{$this->getName()}\" {$attrs}>{$this->getValue()}</textarea>";
+            return "<textarea type=\"text\" name=\"{$this->getFullName()}\" {$attrs}>{$this->getValue()}</textarea>";
         }
     }

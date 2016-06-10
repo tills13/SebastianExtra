@@ -102,6 +102,10 @@
             return $this->name;
         }
 
+        public function getFullName() : string {
+            return "{$this->form->getName()}[{$this->getName()}]";
+        }
+
         public function validate() {
             foreach ($this->getConstraints() as $constraint) {
                 try {

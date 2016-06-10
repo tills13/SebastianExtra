@@ -238,6 +238,7 @@
             }
 
             $query = $qf->getQuery();
+            //print($query); die();
             $result = $this->connection->execute($query, $query->getBinds());
             $results = $result->fetchAll() ?: [];
 
@@ -592,7 +593,7 @@
 
                     $mode = Repository::PERSIST_MODE_INSERT;
                 } else {
-                    if ($this->get($value) == null) {
+                    if ($this->get($value) === null) {
                         $mode = Repository::PERSIST_MODE_INSERT;
                     }
                 }
@@ -609,7 +610,7 @@
                     $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
 
                     if (in_array($field, array_keys($localFields))) {
-                        if ($value == null) continue;
+                        if ($value === null) continue;
                         $qf->insert($column, $value);
                     } else { // here we attempt pre-persist fields
                         $join = $fieldConfig->sub('join');
@@ -681,7 +682,7 @@
                     $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
 
                     if (in_array($field, array_keys($localFields))) {
-                        if ($value == null || in_array($field, $this->keys)) continue;
+                        if ($value === null || in_array($field, $this->keys)) continue;
                         $qf->set($column, $value);
                     } else { // here we attempt pre-persist fields
                         $join = $fieldConfig->sub('join');

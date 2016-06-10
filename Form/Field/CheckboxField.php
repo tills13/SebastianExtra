@@ -22,6 +22,6 @@
 
         public function render() {
             $attrs = $this->getAttributesString();
-            return "<input type=\"checkbox\" name=\"{$this->getName()}\" {$attrs}" . ($this->isChecked() ? " checked" : "" ). ">";
+            return "<input type=\"checkbox\" name=\"{$this->getFullName()}\" {$attrs}" . ($this->isChecked() ? " checked" : "" ). ">";
         }
     }
