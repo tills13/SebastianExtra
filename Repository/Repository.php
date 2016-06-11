@@ -6,7 +6,8 @@
     use SebastianExtra\EntityManager\EntityManager;
 
     use Sebastian\Core\Cache\CacheManager;
-    use Sebastian\Core\Database\Query\Expression\ExpressionFactory;
+    use Sebastian\Core\Database\Query\Expression\Expression;
+    use Sebastian\Core\Database\Query\Expression\ExpressionBuilder;
     use Sebastian\Core\Database\Query\Part\Join;
     use Sebastian\Core\Database\Query\QueryFactory;
     use Sebastian\Core\Exception\SebastianException;
@@ -107,22 +108,26 @@
 
         public function delete($object) {
             $qf = QueryFactory::getFactory();
-            $ef = ExpressionFactory::getFactory();
+            $ef = new ExpressionBuilder();
 
             $qf = $qf->delete()->from($this->getTable());
 
-            $mEf = ExpressionFactory::getFactory();
+            $whereExpression = null;
             foreach ($this->keys as $key) {
+                $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
                 $value = $this->getFieldValue($object, $key);
 
-                $ef->reset()->expr($key)->equals($value);
-                $mEf->andExpr($ef->getExpression());
+                $qf->bind($key, $value);
+                $expression = $ef->eq("{$column}", ":{$key}");
+
+                $whereExpression = $whereExpression == null ? 
+                        $expression : $ef->andExpr($whereExpression, $expression);
             }
 
-            $qf = $qf->where($mEf->getExpression());
-            $query = $qf->getQuery();
+            $qf = $qf->where($whereExpression);
 
-            $result = $this->connection->execute($query, []);
+            $query = $qf->getQuery();
+            $result = $this->connection->execute($query, $query->getBinds());
 
             $key = $this->cacheManager->generateKey($object);
             $this->cacheManager->invalidate($key);
@@ -133,94 +138,58 @@
 
             $em = $this->entityManager; // convenience
             $qf = QueryFactory::getFactory();
-            $ef = ExpressionFactory::getFactory();
+            $ef = new ExpressionBuilder();
 
             $keys = array_map(function($field) use ($em) {
                 return $em->mapFieldToColumn($this->entity, $field);
             }, $this->keys);
 
-            //$qf = $qf->select($this->columns)->from([
             $qf = $qf->select($keys)->from([
                 $this->aliases[0] => $this->getTable()
             ]);
 
-            /*foreach ($this->joins as $field => $join) {
-                $fieldConfig = $this->fields->sub($field);
-
-                if ($fieldConfig->has('targetEntity')) {
-                    $target = $fieldConfig->get('targetEntity');
-                    $mEntityConfig = $this->entityManager->getDefinition($target);
-                    $table = $mEntityConfig->get('table');
-                    $foreignColumn = $join->get(
-                        'foreignColumn', 
-                        $this->entityManager->mapFieldToColumn($target, $join->get('foreign'))
-                    );
-                } else {
-                    $table = $join->get('table');
-                    $foreignColumn = $join->get('foreignColumn');
-                }
-
-                $localColumn = $this->entityManager->mapFieldToColumn($this->entity, $join->get('local'));
-                $withEntityKey = "{$this->aliases[0]}.{$localColumn}";
-
-                $alias = $this->aliases[$field];
-                $expression = $ef->reset()->expr($withEntityKey)
-                        ->equals("{$alias}.{$foreignColumn}")
-                        ->getExpression();
-
-                $qf = $qf->join(Join::TYPE_LEFT, [$alias => $table], $expression);
-            }*/
-
             $expression = null;
-            foreach ($where as $with => $param) {
-                $column = $em->mapFieldToColumn($this->entity, $with);
+            $finalExpr = null;
+
+            foreach ($where as $field => $param) {
+                if ($this->fields->has($field)) {
+                    $column = $em->mapFieldToColumn($this->entity, $field);
+                }
 
                 if ($param instanceof Expression) {
-                    $ef = $ef->reset()->expr($param);
-                    
-                    if ($expression) {
-                        $mExpression = $ef->getExpression();
-                        $ef = $ef->reset()->expr($mExpression)->andExpr($expression);
-                    }
-
-                    $expression = $ef->getExpression();
+                    $finalExpr = $param;
                 } else {
+                    if (!is_array($param)) $params = [$param]; // naming 
+                    else $params = $param; 
+
+                    $expr = null;
                     $lhs = "{$this->aliases[0]}.{$column}";
-                    $ef = $ef->reset()->expr($lhs);
 
-                    if (is_array($param)) {
-                        print ("IN");
-                        //$ef->in($param);
-                    }
+                    foreach ($params as $index => $value) {
+                        if (preg_match("/(!|>=?|<=?) ?(.+)/i", $value, $matches) >= 1) {
+                            $operator = $matches[1];
+                            $value = $matches[2];
 
-                    // todo allow for tables like [['table' => 'column'] => param]
-                    if (preg_match("/(!|not|>|<) ?(.+)/i", $param, $matches) >= 1) {
-                        $operator = $matches[1];
-                        $param = $matches[2];
+                            if ($operator === '!') $operator = Expression::TYPE_NOT_EQUALS;
 
-                        if ($operator == '!' || $operator == 'not') $ef = $ef->notEquals($param);
-                        else if ($operator == '<') $ef = $ef->lessThan($param);
-                        else if ($operator == '>') $ef = $ef->greaterThan($param);
-                    } else {
-                        //$param = "{$this->aliases[$this->entity]}.{$param}";
-                        // todo if (is_array $param)
-
-                        if (is_bool($param)) {
-                            $ef = $ef->is($param ? "TRUE" : "FALSE");
+                            $qf->bind("{$column}_{$index}", $value);
+                            $expr = $ef->compare($lhs, $operator, ":{$column}_{$index}");
                         } else {
-                            $qf->bind($column, $param);
-                            $ef = $ef->equals(":{$column}");
+                            if ($boolValue = filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
+                                $expr = $ef->is($lhs, $boolValue ? "TRUE" : "FALSE");
+                            } else {
+                                $qf->bind("{$column}_{$index}", $value);
+                                $expr = $ef->eq($lhs, ":{$column}_{$index}");
+                            }
                         }
-                    }
 
-                    if ($expression) {
-                        //print ($expression);
-                        $mExpression = $ef->getExpression();
-                        $ef = $ef->reset()->expr($expression)->andExpr($mExpression);
+                        if ($finalExpr) $finalExpr = $ef->orExpr($finalExpr, $expr);
+                        else $finalExpr = $expr;
                     }
-
-                    $expression = $ef->getExpression();
                 }
+
+                if ($expression) $expression = $ef->andExpr($expression, $finalExpr);
+                else $expression = $finalExpr;
             }
 
             if ($expression) $qf = $qf->where($expression);
@@ -238,14 +207,12 @@
             }
 
             $query = $qf->getQuery();
-            //print($query); die();
             $result = $this->connection->execute($query, $query->getBinds());
             $results = $result->fetchAll() ?: [];
 
             $localFields = $em->getLocalFields($this->entity);
             $skeletons = []; // list of final objects
 
-            //var_dump($this->getFieldMap()); die();
             foreach ($results as $index => $row) {
                 $params = [];
                 foreach ($row as $key => $value) {
@@ -254,109 +221,6 @@
 
                 $skeletons[] = $this->get($params);
             }
-
-
-            
-            //$seenLocalkeys = [];
-
-            /*foreach ($results as $mResult) {
-                foreach ($this->fields as $field => $config) {
-                    if (in_array($field, array_keys($localFields))) {
-                        $key = strtolower($this->entity) . "_" . $this->entityManager->mapFieldToColumn($this->entity, $field);
-                        $value = $mResult[$key];
-                    } else {
-                        $join = $config->sub('join');
-
-                        if ($config->has('targetEntity')) {
-                            $target = $config->get('targetEntity');
-                            $targetRepo = $this->entityManager->getRepository($target);
-                            $targetFields = $this->entityManager->getLocalFields($target);
-                            
-                            if (in_array($join->get('type', 'one'), ['one', 'onetoone', '1:1'])) {
-                                array_walk($targetFields, function(&$value, $key) use($target, $field, $results) {
-                                    $key = strtolower("{$field}_{$key}");
-                                    $value = $mResult[$key];
-                                });
-
-                                $value = $targetRepo->get($targetFields);
-                            } else {
-                                $seenKeys = [];
-                                $keys = $targetRepo->getObjectKeys();
-
-                                $realColumns = array_map(function($mField) use ($target, $field) {
-                                    return strtolower("{$field}_{$mField}");
-                                }, array_keys($targetFields));
-
-                                $realKeys = array_map(function($mField) use ($target, $field) {
-                                    return strtolower("{$field}_{$mField}");
-                                }, $keys);
-
-                                $slice = $mResult;
-                                array_walk($slice, function(&$row, $index) use ($realColumns) {
-                                    $row = array_intersect_key($row, array_flip($realColumns));
-                                });
-
-                                $value = array_filter($slice, function($row, $index) use (&$seenKeys, $realKeys) {
-                                    $mKeys = array_intersect_key($row, array_flip($realKeys));
-                                    $hash = md5(implode(array_values($mKeys)));
-
-                                    if (in_array($hash, $seenKeys)) return false;
-                                    else {
-                                        $seenKeys[] = $hash;
-                                        return array_reduce(array_intersect_key($row, array_flip($realKeys)), function($carry, $value) {
-                                            return $carry && $value != null;
-                                        }, true);
-                                    }
-                                }, ARRAY_FILTER_USE_BOTH);
-
-                                array_walk($value, function(&$row, $index) use ($field, $targetRepo, $targetFields) {
-                                    $mValue = array_walk($targetFields, function(&$value, $key) use ($row, $field) {
-                                        $key = strtolower("{$field}_{$key}");
-                                        $value = $row[$key];
-                                    });
-
-                                    $row = $targetRepo->get($targetFields);
-                                });
-
-                                $value = array_values($value);
-                            }
-                        } else {
-                            $columns = $join->get('columns');
-                            $idColumns = $join->get('idColumns', [$columns[0]]);
-                            $realColumns = array_map(function($column) use ($field) { return "{$field}_{$column}"; }, $columns);
-                            $realIdColumns = array_map(function($column) use ($field) { return "{$field}_{$column}"; }, $idColumns);
-
-                            if (in_array($join->get('type', 'one'), ['one', 'onetoone', '1:1'])) {
-                                $value = array_intersect_key($mResult, array_flip($realColumns));
-                            } else {
-                                $seenKeys = [];
-
-                                $slice = $mResult;
-                                array_walk($slice, function(&$row, $index) use ($realColumns) {
-                                    $row = array_intersect_key($row, array_flip($realColumns));
-                                });
-
-                                $value = array_values(array_filter($slice, function($row, $index) use (&$seenKeys, $realIdColumns) {
-                                    $keys = array_intersect_key($row, array_flip($realIdColumns));
-                                    $hash = md5(implode(array_values($keys)));
-
-                                    if (in_array($hash, $seenKeys)) return false;
-                                    else {
-                                        $seenKeys[] = $hash;
-                                        return array_reduce(array_intersect_key($row, array_flip($realIdColumns)), function($carry, $value) {
-                                            return $carry && $value != null;
-                                        }, true);
-                                    }
-                                }, ARRAY_FILTER_USE_BOTH));
-                            }
-                        }
-                    }
-
-                    $skeleton = $this->setFieldValue($skeleton, $field, $value);
-                }
-                
-                $mSkeletons[] = $skeleton;
-            }*/
 
             return $skeletons;
         }
@@ -379,7 +243,7 @@
             }
 
             $qf = QueryFactory::getFactory();
-            $ef = ExpressionFactory::getFactory();
+            $ef = new ExpressionBuilder();
 
             if (empty(array_intersect($this->keys, array_keys($params)))) {
                 $keys = implode(', ', $this->keys);
@@ -432,27 +296,25 @@
                 $withEntityKey = "{$this->aliases[0]}.{$localColumn}";
 
                 $alias = $this->aliases[$field];
-                $expression = $ef->reset()->expr($withEntityKey)
-                        ->equals("{$alias}.{$foreignColumn}")
-                        ->getExpression();
+                $expression = $ef->eq("{$alias}.{$foreignColumn}", $withEntityKey);
 
                 $qf = $qf->join(Join::TYPE_LEFT, [$alias => $table], $expression);
             }
 
-            $ef->reset();
-            $mExFactory = ExpressionFactory::getFactory();
+            $whereExpression = null;
             foreach ($this->keys as $key) {
                 $value = $this->getFieldValue($skeleton, $key);
 
                 $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
-                $mExFactory->reset()->expr("{$this->aliases[0]}.{$column}")
-                    ->equals(":$key"); // generates the individual expression
 
                 $qf->bind($key, $value);
-                $ef->andExpr($mExFactory->getExpression()); // handles generating the final expression
+                $expression = $ef->eq("{$this->aliases[0]}.{$column}", ":{$key}");
+
+                if ($whereExpression) $whereExpression = $ef->andExpr($whereExpression, $expression);
+                else $whereExpression = $expression;
             }
 
-            $qf = $qf->where($ef->getExpression());
+            $qf = $qf->where($whereExpression);
             $query = $qf->getQuery();
 
             $statement = $this->connection->execute($query, $query->getBinds());
@@ -578,6 +440,7 @@
         const AUTO_GENERATED_TYPES = ['serial'];
         public function persist(&$object) {
             $qf = QueryFactory::getFactory();
+            $ef = new ExpressionBuilder();
             $mode = Repository::PERSIST_MODE_UPDATE;
             $definition = $this->getDefinition();
             $connection = $this->getConnection();
@@ -731,21 +594,19 @@
                     }
                 }
 
-                $ef = ExpressionFactory::getFactory();
-                $mEf = ExpressionFactory::getFactory();
+                $whereExpression = null;
                 foreach ($this->keys as $key) {
                     $value = $this->getFieldValue($object, $key);
 
                     $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
-                    $mEf->reset()->expr("{$column}")
-                        ->equals(":{$key}"); // generates the individual expression
-
                     $qf->bind($key, $value);
-                    $ef->andExpr($mEf->getExpression()); // handles generating the final expression
+                    $expression = $ef->eq("{$column}", ":{$key}");
+
+                    $whereExpression = $whereExpression == null ? 
+                        $expression : $ef->andExpr($whereExpression, $expression);
                 }
 
-                $qf = $qf->where($ef->getExpression());
-
+                $qf = $qf->where($whereExpression);
                 $query = $qf->getQuery();
                 $result = $connection->execute($query, $query->getBinds());
             }
@@ -762,7 +623,6 @@
             }
 
             $key = $this->cacheManager->generateKey($object);
-            //var_dump($key); throw \PDOException("asdasd");
             $this->cacheManager->invalidate($key);
             
             return $object;
