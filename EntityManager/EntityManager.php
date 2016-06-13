@@ -6,6 +6,7 @@
 
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Context\ContextInterface;
+    use Sebastian\Core\Database\Query\Expression\ExpressionBuilder;
     use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Exception\SebastianException;
 
@@ -251,32 +252,6 @@
         }
 
         /**
-         * ({Namespace}:)?{Component}:{Class}
-         * @param  [type] $class [description]
-         * @return [type]        [description]
-         */
-        public function normalizeClass($class) {
-            if (strstr($class, ':')) {
-                $class = explode(':', $class);
-
-                if (count($class) == 3) {
-                    $namespace = $class[0];
-                    $component = $class[1];
-                    $class = $class[2];
-                } else if (count($class) == 2) {
-                    $namespace = $this->context->getNamespace();
-                    $component = $class[0];
-                    $class = $class[1];
-                } else {
-                    throw new \Exception();
-                }
-            } else {
-                $namespace = $this->context->getNamespace();
-                //$component
-            }
-        }
-
-        /**
          * turns \{Namespace}\{Class} into 
          * @param  [type] $class [description]
          * @return [type]        [description]
@@ -447,5 +422,9 @@
 
         public function getObjectReferenceCache() {
             return self::$_objectReferenceCache;
+        }
+
+        public function expr() {
+            return new ExpressionBuilder();
         }
     }

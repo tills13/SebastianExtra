@@ -21,6 +21,10 @@
             'checkbox' => Field\CheckboxField::class
         ];
 
+        protected static $constraintTypes = [
+            'not_blank' => Constraint\NotBlankConstraint::class
+        ];
+
         public function __construct(ContextInterface $context, Configuration $config = null) {
             $this->config = $config ?: new Configuration();
             $this->config->extend([]);
@@ -61,7 +65,7 @@
          * add form-level constraints
          * @param Constraint $constraint a form constraint
          */
-        public function addFormConstraint(Constraint $constraint) {
+        public function addFormConstraint(ConstraintInterface $constraint) {
             $this->form->addConstraint($constraint);
             return $this;
         }
@@ -71,7 +75,7 @@
          * @param string     $field      the id of the field
          * @param Constraint $constraint a constraint
          */
-        public function addFieldConstraint($field, FieldConstraint $constraint) {
+        public function addFieldConstraint($field, ConstraintInterface $constraint) {
             if (!$form->hasField($field)) {
                 throw new FormBuilderException("Form has no {$field} field.");
             }
@@ -128,10 +132,17 @@
                 $this->attribute($key, $value);
             }
 
-            foreach ($fields as $name => $config) {
+            foreach ($fields as $fieldName => $config) {
                 $type = $config->get('type');
                 $fieldAttributes = $config->get('attributes', []);
-                $this->add($name, $type, $fieldAttributes);
+                $this->add($fieldName, $type, $fieldAttributes);
+
+                $constraints = $config->get('constraints', []);
+                
+                foreach ($constraints as $type => $fieldConfig) {
+                    //$constraint = $this->getFieldConstraint($type, $fieldConfig);
+                    //$this->addFieldConstraint($fieldName, $constraint);
+                }
             }
 
             return $this;
@@ -144,6 +155,15 @@
 
             $this->form->setMethod($method);
             return $this;
+        }
+
+        public function getFieldConstraint($type, $config) {
+            if (!isset($this->constraintTypes[$type])) {
+                throw new FormBuilderException("no constraint {$type}");
+            }
+
+            return $this->constraintTypes[$type];
+ 
         }
 
         public function getForm() {
