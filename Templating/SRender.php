@@ -32,7 +32,8 @@
 
         public function __call($method, $arguments = []) {
             if ($this->macros->has($method)) {
-                //$this->macros->get($method)($arguments);//->execute($argmuments);
+                $macro = $this->macros->get($method);
+                return call_user_func_array($macro, $arguments);
             } else throw new RenderException("Macro {$method} does not exist...");
         }
 

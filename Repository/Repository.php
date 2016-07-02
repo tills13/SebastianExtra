@@ -2,6 +2,7 @@
     namespace SebastianExtra\Repository;
 
     use \PDO;
+    use \Exception;
 
     use SebastianExtra\EntityManager\EntityManager;
 
@@ -154,6 +155,9 @@
             foreach ($where as $field => $param) {
                 if ($this->fields->has($field)) {
                     $column = $em->mapFieldToColumn($this->entity, $field);
+                } else {
+                    $column = $field;
+                    throw new Exception("field {$field} doesn't map to a column for {$this->entity}");
                 }
 
                 if ($param instanceof Expression) {
@@ -623,7 +627,9 @@
             }
 
             $key = $this->cacheManager->generateKey($object);
+            
             $this->cacheManager->invalidate($key);
+            $this->orc->invalidate($key);
             
             return $object;
         }

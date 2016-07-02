@@ -5,6 +5,7 @@
     use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Http\Request;
     use Sebastian\Utility\Collection\Collection;
+    use SebastianExtra\Form\Exception\FormException;
     use SebastianExtra\Form\Field\FieldInterface;
     use SebastianExtra\Repository\Repository;
 

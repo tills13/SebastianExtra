@@ -30,16 +30,31 @@
             }
 
             if ($config->get('form.enabled', true)) {
-                //$context->formBuilder = function() {
-                 //   print('hello'); die();
-                //};
-
                 $context->formBuilder = new FormBuilder($context, $config->sub('form'));
-                if ($context->get('templating')) {
-                    $context->get('templating')->addMacro('formRow', function($field) {
-                        $field->render();
-                    });
-                }
+                $this->setupFormTemplatingMacros();
+            }
+        }
+
+        private function setupFormTemplatingMacros() {
+             if ($templating = $this->getContext()->get('templating')) {
+                $templating->addMacro('formRow', function($form, $field, $args = []) use ($templating) {
+                    if (!$field instanceof Form\Field\FieldInterface) {
+                        $field = $form->get($field);
+                    }
+
+                    return $templating->render('form_group', [
+                        'form' => $form,
+                        'field' => $field,
+                    ]);
+                });
+
+                $templating->addMacro('formLabel', function($form, $field, $default = null) use ($templating) {
+                    if (!$field instanceof Form\Field\FieldInterface) {
+                        $field = $form->get($field);
+                    }
+
+                    return $field->getAttribute('label') ?? $field->getAttribute('placeholder') ?? $default ?? $field->getName();
+                });
             }
         }
 
