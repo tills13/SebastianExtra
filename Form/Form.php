@@ -1,11 +1,17 @@
 <?php
     namespace SebastianExtra\Form;
 
+    use \Exception;
 
     use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Http\Request;
     use Sebastian\Utility\Collection\Collection;
     use SebastianExtra\Form\Exception\FormException;
+
+    use SebastianExtra\Form\Constraint\Field\FieldConstraint;    
+    use SebastianExtra\Form\Constraint\Form\FormConstraint;
+    use SebastianExtra\Form\Error\FormError;
+    
     use SebastianExtra\Form\Field\FieldInterface;
     use SebastianExtra\Repository\Repository;
 
@@ -101,6 +107,10 @@
 
         public function addError(FormError $error) {
             $this->errors->set(null, $error);
+        }
+
+        public function addErrorFromException(Exception $e) {
+            $this->addError(new FormError($this, $e));
         }
 
         public function setErrors(Collection $errors = null) {
@@ -236,12 +246,12 @@
                 }
             }
 
+            $this->validate();
             $this->isSubmitted = true;
         }
 
         public function isValid() {
-            return true;
-            return $this->validated && $this->getErrors()->count() == 0;
+            return $this->validated && ($this->getErrors()->count() === 0);
         }
 
         public function start() {
@@ -254,7 +264,7 @@
                 try {
                     $constraint->validate(); 
                 } catch (FormConstraintException $e) {
-                    $this->addError(new FormError($e));
+                    $this->addError(new FormError($this, $e));
                 }
             }
 
