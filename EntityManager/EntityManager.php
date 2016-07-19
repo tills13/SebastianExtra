@@ -411,7 +411,6 @@
             if (array_key_exists($field, $columns)) {
                 return $columns[$field];
             } else {
-                var_dump($columns);
                 throw new \Exception("Field {$field} does not exist in {$entity}.");
             }
         }

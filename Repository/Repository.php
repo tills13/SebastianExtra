@@ -296,7 +296,12 @@
                     $foreignColumn = $join->get('foreignColumn');
                 }
 
-                $localColumn = $this->entityManager->mapFieldToColumn($this->entity, $join->get('local'));
+                if ($join->has('local')) {
+                    $localColumn = $this->entityManager->mapFieldToColumn($this->entity, $join->get('local'));
+                } else {
+                    $localColumn = $join->get('localColumn');
+                }
+                
                 $withEntityKey = "{$this->aliases[0]}.{$localColumn}";
 
                 $alias = $this->aliases[$field];
