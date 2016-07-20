@@ -17,6 +17,7 @@
             'textarea' => Field\TextAreaField::class,
             'input' => Field\InputField::class,
             'text' => Field\InputField::class,
+            'number' => Field\NumberField::class,
             'password' => Field\PasswordField::class,
             'checkbox' => Field\CheckboxField::class
         ];
@@ -40,7 +41,13 @@
             }
         }
 
-        public static function importForm(Configuration $config) {}
+        public static function import($name, $fields) {
+            $form = new Form($name);
+
+            foreach ($config as $key => $field) {
+                //$form->
+            }
+        }
 
         /**
          * sets the forms "action" parameter
@@ -54,10 +61,12 @@
         public function add($name, $type, $params = []) {
             if (!array_key_exists($type, self::$fieldTypes)) {
                 throw new FormBuilderException("Field type {$type} does not exist.");
+            } else {
+                $field = new self::$fieldTypes[$type]($this->form, $name, $params);
             }
-
-            $field = new self::$fieldTypes[$type]($this->form, $name, $params);
+            
             $this->form->addField($field);
+
             return $this;
         }
 
@@ -106,11 +115,11 @@
                 throw new FormBuilderException("Form name cannot be blank.");
             }
 
-            $this->form = new Form($name);
+            $this->form = new Form(null, $name);
             return $this;
         }
 
-        public function load($filename) {
+        public function load($filename, array $defaults = []) {
             if ($this->cacheManager && $this->cacheManager->isCached($filename)) {
                 return $this->cacheManager->load($filename);
             }
@@ -133,8 +142,27 @@
             }
 
             foreach ($fields as $fieldName => $config) {
-                $type = $config->get('type');
+                $type = $config->get('type', 'group');
+
+                if ($type === 'group') {
+                    $field = new Form($this->form, $fieldName);
+
+                    foreach ($config['fields'] as $key => $mField) {
+                        $mField = new self::$fieldTypes[$mField['type']]($field, $key, $mField['attributes'] ?? []);
+
+                        $field->addField($mField, $mField->getName());
+                    }
+
+                    $this->form->addField($field);
+                    continue;
+                }
+
                 $fieldAttributes = $config->get('attributes', []);
+
+                if ($config->has('map')) {
+                    $fieldAttributes['map'] = $fieldAttributes['map'] ?? $config->get('map');
+                }
+
                 $this->add($fieldName, $type, $fieldAttributes);
 
                 $constraints = $config->get('constraints', []);
@@ -163,7 +191,6 @@
             }
 
             return $this->constraintTypes[$type];
- 
         }
 
         public function getForm() {

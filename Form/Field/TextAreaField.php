@@ -1,7 +1,9 @@
 <?php
     namespace SebastianExtra\Form\Field;
 
-    class TextAreaField extends Field {
+    use SebastianExtra\Form\Form;
+
+    class TextAreaField extends Form {
         public function setValue($value) {
             $this->value = $value;
         }

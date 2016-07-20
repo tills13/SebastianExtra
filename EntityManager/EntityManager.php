@@ -316,7 +316,12 @@
         public function getRepository($class) {
             try {
                 if (is_object($class) || !$this->entities->has($class)) {
-                    $reflection = new ReflectionClass($class);
+                    try {
+                        $reflection = new ReflectionClass($class);
+                    } catch (ReflectionException $e) {
+                        throw new SebastianException("Could not reflect entity {$class}. Did you forget to add it to your entity definitions?");
+                    }
+                    
                     $class = $reflection->getShortName();
                 }
 
