@@ -86,7 +86,6 @@
                     $object = $repo->persist($object);
                     $connection->commit();
                     return $object;
-                    //return $this->refresh($object);
                 } else {
                     //var_dump($object);
                     //throw new SebastianException("Repo not found for " . get_class($object));
@@ -249,30 +248,6 @@
             }
 
             return $aliases;
-        }
-
-        /**
-         * turns \{Namespace}\{Class} into 
-         * @param  [type] $class [description]
-         * @return [type]        [description]
-         */
-        public function getBestGuessClass($class) {
-            $namespace = $this->context->getNamespace();
-            $components = $this->context->getComponents();
-            $bestGuessSimpleClass = strstr($class, '\\') ? substr($class, strrpos($class, '\\') + 1) : $class;
-
-            if ($this->entities->has($class)) {
-                return $class;
-            }
-
-            foreach ($components as $component) {
-                $path = $component->getNamespacePath();
-                $classPath = "{$namespace}\\{$path}\\Entity\\{$bestGuessSimpleClass}";
-
-                if ($classPath == $class) return $bestGuessSimpleClass;
-            }
-
-            return null;
         }
 
         public function getConnection() {
