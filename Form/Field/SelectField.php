@@ -3,7 +3,7 @@
 
     use SebastianExtra\Form\Form;
 
-    class InputField extends Form {
+    class SelectField extends Form {
         public function setValue($value) {
             $this->value = $value;
         }

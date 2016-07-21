@@ -150,7 +150,6 @@
             ]);
 
             $expression = null;
-            $finalExpr = null;
 
             foreach ($where as $field => $param) {
                 if ($this->fields->has($field)) {
@@ -160,8 +159,10 @@
                     throw new Exception("field {$field} doesn't map to a column for {$this->entity}");
                 }
 
+                $tempExpr = null; // reset the temp expression
+
                 if ($param instanceof Expression) {
-                    $finalExpr = $param;
+                    $tempExpr = $param;
                 } else {
                     if (!is_array($param)) $params = [$param]; // naming 
                     else $params = $param; 
@@ -187,13 +188,13 @@
                             }
                         }
 
-                        if ($finalExpr) $finalExpr = $ef->orExpr($finalExpr, $expr);
-                        else $finalExpr = $expr;
+                        if ($tempExpr) $tempExpr = $ef->orExpr($tempExpr, $expr);
+                        else $tempExpr = $expr;
                     }
                 }
 
-                if ($expression) $expression = $ef->andExpr($expression, $finalExpr);
-                else $expression = $finalExpr;
+                if ($expression) $expression = $ef->andExpr($expression, $tempExpr);
+                else $expression = $tempExpr;
             }
 
             if ($expression) $qf = $qf->where($expression);

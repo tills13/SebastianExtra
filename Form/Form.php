@@ -6,16 +6,13 @@
     use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Http\Request;
     use Sebastian\Utility\Collection\Collection;
+   
+    use SebastianExtra\Form\Constraint\ConstraintInterface;
+    use SebastianExtra\Form\Error\ErrorInterface;
     use SebastianExtra\Form\Exception\FormException;
-
-    use SebastianExtra\Form\Constraint\Field\FieldConstraint;    
-    use SebastianExtra\Form\Constraint\Form\FormConstraint;
-    use SebastianExtra\Form\Error\FormError;
-    
-    use SebastianExtra\Form\Field\FieldInterface;
     use SebastianExtra\Repository\Repository;
 
-    class Form {
+    class Form implements FormInterface {
         const METHOD_GET = "GET";
         const METHOD_POST = "POST";
 
@@ -27,18 +24,21 @@
         protected $fields;
         protected $method;
         protected $name;
+        protected $parent;
         protected $repository;
         protected $submitted;
         protected $validated;
+        protected $value;
 
-        public function __construct($name) {           
+        public function __construct(Form $parent = null, $name, array $attributes = []) {       
             $this->action = null;
-            $this->attributes = new Collection();
+            $this->attributes = $attributes ? new Collection($attributes) : new Collection();
             $this->constraints = new Collection();
             $this->errors = new Collection();
             $this->fields = new Collection();
             $this->method = self::METHOD_GET;
             $this->name = $name;
+            $this->parent = $parent;
             $this->submitted = false;
             $this->validated = false;
         }
@@ -59,6 +59,10 @@
             $this->attributes = $attributes;
         }
 
+        public function getAttribute($attribute, $default = null) {
+            return $this->attributes->get($attribute, $default);
+        }
+
         public function getAttributes() {
             return $this->attributes;
         }
@@ -73,15 +77,15 @@
             return $string;
         }
 
-        public function addConstraint(FormConstraint $constraint) {
+        public function addConstraint(ConstraintInterface $constraint) {
             $this->constraints->set(null, $constraint);
         }
 
-        public function addFieldConstraint($field, FieldConstraint $constraint) {
+        public function addFieldConstraint($field, ConstraintInterface $constraint) {
             $this->getField($field)->addConstraint($constraint);
         }
 
-        public function setConstraints(Collection $constraints = null) {
+        public function setConstraints(ConstraintInterface ... $constraints) {
             $this->constraints = $constraints;
         }
 
@@ -105,7 +109,7 @@
             // todo
         }
 
-        public function addError(FormError $error) {
+        public function addError(ErrorInterface $error) {
             $this->errors->set(null, $error);
         }
 
@@ -113,19 +117,23 @@
             $this->addError(new FormError($this, $e));
         }
 
-        public function setErrors(Collection $errors = null) {
+        public function setErrors(ErrorInterface ... $errors) {
             $this->errors = $errors;
+        }
+
+        public function hasErrors() {
+            return $this->validated && $this->errors->count() != 0;
         }
 
         public function getErrors() {
             return $this->errors;
         }
 
-        public function addField(FieldInterface $field) {
+        public function addField(FormInterface $field) {
             $this->fields->set($field->getName(), $field);
         }
 
-        public function setFields(Collection $fields = null) {
+        public function setFields(FormInterface ... $fields) {
             $this->fields = $fields;
         }
 
@@ -157,8 +165,16 @@
             $this->name = $name;
         }
 
-        public function getName() {
+        public function getName() : string {
             return $this->name;
+        }
+
+        public function getFullName() : string {
+            return $this->getParent() ? $this->getParent()->getFullName() . "[{$this->getName()}]" : $this->getName();
+        }
+
+        public function getParent() {
+            return $this->parent;
         }
 
         public function setRepository(Repository $repository) {
@@ -167,6 +183,14 @@
 
         public function getRepository() : Repository {
             return $this->repository;
+        }
+
+        public function setValue($value) {
+            $this->value = $value;
+        }
+
+        public function getValue() {
+            return $this->value;
         }
 
         public function bindModel(EntityInterface $entity) {
@@ -251,7 +275,7 @@
         }
 
         public function isValid() {
-            return $this->validated && ($this->getErrors()->count() === 0);
+            return $this->validated && !$this->hasErrors();
         }
 
         public function start() {
@@ -259,11 +283,17 @@
             return "<form action=\"{$this->getAction()}\" method=\"{$this->getMethod()}\" {$attrs}>";
         }
 
+        public function render() {
+            foreach ($this->getFields() as $field) {
+                echo $field->render();
+            }
+        }
+
         public function validate() {
             foreach ($this->getConstraints() as $constraint) {
                 try {
                     $constraint->validate(); 
-                } catch (FormConstraintException $e) {
+                } catch (ConstraintException $e) {
                     $this->addError(new FormError($this, $e));
                 }
             }

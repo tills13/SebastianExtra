@@ -1,7 +1,9 @@
 <?php
     namespace SebastianExtra\Form\Field;
 
-    class CheckboxField extends Field {
+    use SebastianExtra\Form\Form;
+
+    class CheckboxField extends Form {
         public function setValue($value = false) {
             $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
             $this->value = $value;
