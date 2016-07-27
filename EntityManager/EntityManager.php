@@ -124,8 +124,8 @@
             foreach ($joins as $field => $join) {
                 $fieldConfig = $entityFields->sub($field);
 
-                if ($fieldConfig->has('targetEntity')) {
-                    $target = $fieldConfig->get('targetEntity');
+                if ($fieldConfig->has('target_entity')) {
+                    $target = $fieldConfig->get('target_entity');
                     $mEntityDefinition = $this->getDefinition($target);
                     $mFields = $this->getLocalFields($target);
                     
@@ -196,7 +196,7 @@
                 $objectVal = $repo->getFieldValue($object, $name);
                 $cachedVal = $repo->getFieldValue($cached, $name);
 
-                if ($field->has('targetEntity')) {
+                if ($field->has('target_entity')) {
                     if (in_array($field->get('relation'), ['1:1', 'one', 'onetoone'])) {
                         $mRepo = $this->getRepository(get_class($objectVal));
                         $keysA = $mRepo->getPrimaryKeys($objectVal);
@@ -230,8 +230,8 @@
                 $fieldConfig = $entityFields->sub($field);
                 $join = $fieldConfig->sub('join');
 
-                if ($fieldConfig->has('targetEntity')) {
-                    $mEntityDefinition = $this->getDefinition($fieldConfig->get('targetEntity'));
+                if ($fieldConfig->has('target_entity')) {
+                    $mEntityDefinition = $this->getDefinition($fieldConfig->get('target_entity'));
                     $table = $mEntityDefinition->get('table');
                 } else {
                     // todo handle join tables
@@ -372,14 +372,14 @@
             return array_map(function($field) {
                 if (array_key_exists('column', $field)) return $field['column'];
                 else {
-                    return isset($field['join']['local']) ? $field['join']['local'] : $field['join']['localColumn'];
+                    return isset($field['join']['local']) ? $field['join']['local'] : $field['join']['local_column'];
                 }
             }, array_filter($fields, function($field, $name) {
                 if (array_key_exists('column', $field)) return true;
                 if (isset($field['join'])) {
                     $join = $field['join'];
                     return array_key_exists('local', $join) || 
-                           array_key_exists('localColumn', $join);
+                           array_key_exists('local_column', $join);
                 }
             }, ARRAY_FILTER_USE_BOTH));
         }

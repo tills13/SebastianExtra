@@ -30,12 +30,15 @@
         protected $validated;
         protected $value;
 
-        public function __construct(Form $parent = null, $name, array $attributes = []) {       
+        public function __construct(Form $parent = null, $name, $attributes = []) {       
             $this->action = null;
-            $this->attributes = $attributes ? new Collection($attributes) : new Collection();
-            $this->constraints = new Collection();
-            $this->errors = new Collection();
-            $this->fields = new Collection();
+
+            if (is_array($attributes)) $this->attributes = new Collection($attributes);
+            else $this->attributes = $attributes ?? new Collection();
+
+            $this->constraints = [];
+            $this->errors = [];
+            $this->fields = [];
             $this->method = self::METHOD_GET;
             $this->name = $name;
             $this->parent = $parent;
@@ -78,7 +81,7 @@
         }
 
         public function addConstraint(ConstraintInterface $constraint) {
-            $this->constraints->set(null, $constraint);
+            $this->constraints[] = $constraint;
         }
 
         public function addFieldConstraint($field, ConstraintInterface $constraint) {
@@ -98,19 +101,8 @@
             // todo serialize form
         }
 
-        /**
-         * sets the forms data
-         * if entity, then bind the entity
-         * if array, then bind the array values
-         * 
-         * @param mixed $data the data to bind to the form
-         */
-        public function setData($data) {
-            // todo
-        }
-
         public function addError(ErrorInterface $error) {
-            $this->errors->set(null, $error);
+            $this->errors[] = $error;
         }
 
         public function addErrorFromException(Exception $e) {
@@ -122,7 +114,7 @@
         }
 
         public function hasErrors() {
-            return $this->validated && $this->errors->count() != 0;
+            return $this->validated && count($this->errors) != 0;
         }
 
         public function getErrors() {
@@ -130,7 +122,7 @@
         }
 
         public function addField(FormInterface $field) {
-            $this->fields->set($field->getName(), $field);
+            $this->fields[$field->getName()] = $field;
         }
 
         public function setFields(FormInterface ... $fields) {
@@ -138,15 +130,16 @@
         }
 
         public function hasField($field) {
-            return $this->fields->has($field);
+            $name = $field instanceof Form ? $field->getName() : $field;
+            return isset($this->fields[$name]);
         }
 
-        public function getField($field) {
+        public function getField(string $field) {
             if (!$this->hasField($field)) {
                 throw new FormException("Field {$field} does not exist...");
             }
 
-            return $this->fields->get($field);
+            return $this->fields[$field];
         }
 
         public function getFields() {
@@ -263,8 +256,7 @@
                     $value = $data["{$field->getName()}"];
                 }
 
-                $field->setValue($value);
-
+                if ($mapped) $field->setValue($value);
                 if (!is_null($this->entity) && !is_null($this->repository) && $mapped) {
                     $this->entity = $this->repository->setFieldValue($this->entity, $mappedField, $field->getValue());
                 }

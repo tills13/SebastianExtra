@@ -1,4 +1,4 @@
 <div class="form-group">
-    <label for="<?=$field->getId()?>"><?=$this->formLabel($form, $field)?></label>
+    <label for="<?=$field->getName()?>"><?=$this->formLabel($form, $field)?></label>
     <?=$field->render()?>
 </div>

@@ -41,8 +41,8 @@
         protected $orc;
         
         public function __construct(EntityManager $entityManager, CacheManager $cacheManager = null, Logger $logger = null, Configuration $config = null, $entity = null) {
-            $this->entityManager = $entityManager;
-            $this->cacheManager = $cacheManager;
+            $this->em = $entityManager;
+            $this->cm = $cacheManager;
             $this->logger = $logger;
             $this->connection = $entityManager->getConnection();
 
@@ -69,16 +69,16 @@
             $this->initCalled = true;
 
             if ($this->entity != null) {
-                $this->definition = $this->entityManager->getDefinition($this->entity);
-                $this->nsPath = $this->entityManager->getNamespacePath($this->entity);
+                $this->definition = $this->em->getDefinition($this->entity);
+                $this->nsPath = $this->em->getNamespacePath($this->entity);
 
                 $this->table = $this->definition->get('table');
                 $this->keys = $this->definition->get('keys');
                 $this->fields = $this->definition->sub('fields');
 
-                $this->joins = $this->entityManager->computeJoinSets($this->entity);
-                $this->aliases = $this->entityManager->generateTableAliases($this->entity, $this->joins);
-                $this->columns = $this->entityManager->computeColumnSets($this->entity, $this->joins, $this->aliases);
+                $this->joins = $this->em->computeJoinSets($this->entity);
+                $this->aliases = $this->em->generateTableAliases($this->entity, $this->joins);
+                $this->columns = $this->em->computeColumnSets($this->entity, $this->joins, $this->aliases);
             }
 
             $this->reflection = new \ReflectionClass($this->class);
@@ -94,7 +94,7 @@
          */
         public function build($object = null, $fields = []) {
             if (!$object) {
-                $classPath = $this->entityManager->getNamespacePath($this->entity);
+                $classPath = $this->em->getNamespacePath($this->entity);
                 $object = new $classPath();
             }
 
@@ -115,7 +115,7 @@
 
             $whereExpression = null;
             foreach ($this->keys as $key) {
-                $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
+                $column = $this->em->mapFieldToColumn($this->entity, $key);
                 $value = $this->getFieldValue($object, $key);
 
                 $qf->bind($key, $value);
@@ -130,14 +130,14 @@
             $query = $qf->getQuery();
             $result = $this->connection->execute($query, $query->getBinds());
 
-            $key = $this->cacheManager->generateKey($object);
-            $this->cacheManager->invalidate($key);
+            $key = $this->cm->generateKey($object);
+            $this->cm->invalidate($key);
         }
 
         public function find($where = [], $options = []) {
             $where = $where ?: [];
 
-            $em = $this->entityManager; // convenience
+            $em = $this->em; // convenience
             $qf = QueryFactory::getFactory();
             $ef = new ExpressionBuilder();
 
@@ -204,7 +204,7 @@
                 if (isset($options['offset'])) $qf = $qf->offset($options['offset']);
                 if (isset($options['orderBy'])) {
                     foreach ($options['orderBy'] as $field => $direction) {
-                        $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
+                        $column = $this->em->mapFieldToColumn($this->entity, $field);
                         $column = "{$this->aliases[0]}.{$column}";
                         $qf = $qf->orderBy($column, $direction);
                     }
@@ -240,9 +240,11 @@
         const JOIN_TYPE_JOIN_TABLE = 1;
         public function get($params) {
             if (!is_array($params)) {
-                if (count($this->keys) != 1) throw new SebastianException(
-                    "Cannot use simplified method signature when entity has more than one primary key"
-                );
+                if (count($this->keys) != 1) {
+                    throw new SebastianException(
+                        "Cannot use simplified method signature when entity has more than one primary key"
+                    );
+                }
 
                 $params = [ $this->keys[0] => $params ];
             }
@@ -250,19 +252,13 @@
             $qf = QueryFactory::getFactory();
             $ef = new ExpressionBuilder();
 
-            if (empty(array_intersect($this->keys, array_keys($params)))) {
+            if (count(array_intersect($this->keys, array_keys($params))) != count($this->keys)) {
                 $keys = implode(', ', $this->keys);
                 throw new SebastianException("One of [{$keys}] must be provided for entity {$this->entity}", 500);
             }
 
             // check temp cache
             $skeleton = $this->build(null, $params);
-            foreach ($this->keys as $key) {
-                if ($this->getFieldValue($skeleton, $key) == null) {
-                    return null;
-                }
-            }
-
             $orcKey = $this->orc->generateKey($skeleton);
 
             if ($this->orc->isCached($orcKey)) {
@@ -273,9 +269,9 @@
             }
 
             // then check long term cache
-            $cmKey = $this->cacheManager->generateKey($skeleton);
-            if ($this->cacheManager->isCached($cmKey)) {
-                return $this->cacheManager->load($cmKey);
+            $cmKey = $this->cm->generateKey($skeleton);
+            if ($this->cm->isCached($cmKey)) {
+                return $this->cm->load($cmKey);
             }
 
             $qf = $qf->select($this->columns)
@@ -284,41 +280,59 @@
             foreach ($this->joins as $field => $join) {
                 $fieldConfig = $this->fields->sub($field);
 
-                if ($fieldConfig->has('targetEntity')) {
-                    $target = $fieldConfig->get('targetEntity');
-                    $mEntityConfig = $this->entityManager->getDefinition($target);
+                if ($fieldConfig->has('target_entity')) {
+                    $target = $fieldConfig->get('target_entity');
+                    $mEntityConfig = $this->em->getDefinition($target);
                     $table = $mEntityConfig->get('table');
-                    $foreignColumn = $join->get(
-                        'foreignColumn', 
-                        $this->entityManager->mapFieldToColumn($target, $join->get('foreign'))
-                    );
+                    //$mEntityConfig = $this->mapFieldToColumn($target, $fieldOrColumn);
+                    
+                    if ($join->has('foreign')) {
+                        $foreignField = $join->get('foreign');
+                        $foreignColumn = $this->em->mapFieldToColumn($target, $foreignField); 
+                    } else {
+                        $foreignColumn = $join->get('foreign_column');
+                    }
                 } else {
                     $table = $join->get('table');
-                    $foreignColumn = $join->get('foreignColumn');
+                    $foreignColumn = $join->get('foreign_column');
+                }
+                    
+                if ($join->has('local')) {
+                    $localField = $join->get('local');
+                    $localColumn = $this->em->mapFieldToColumn($this->entity, $localField); 
+                } else {
+                    $localColumn = $join->get('local_column');
                 }
 
-                if ($join->has('local')) {
-                    $localColumn = $this->entityManager->mapFieldToColumn($this->entity, $join->get('local'));
-                } else {
-                    $localColumn = $join->get('localColumn');
-                }
-                
-                $withEntityKey = "{$this->aliases[0]}.{$localColumn}";
+                $localColumn = "{$this->aliases[0]}.{$localColumn}";
+                $foreignColumn = "{$this->aliases[$field]}.{$foreignColumn}";
+                $expression = $ef->eq($foreignColumn, $localColumn);
 
                 $alias = $this->aliases[$field];
-                $expression = $ef->eq("{$alias}.{$foreignColumn}", $withEntityKey);
-
                 $qf = $qf->join(Join::TYPE_LEFT, [$alias => $table], $expression);
+
+                /*if ($join->has('order_by')) {
+                    $orderBy = $join->get('order_by');
+                    $fieldOrColumn = $orderBy[0];
+                    $direction = count($orderBy) == 2 ? $orderBy[1] : "ASC";
+
+                    if ($this->fields->has($fieldOrColumn)) {
+                        $column = $this->fields->sub($fieldOrColumn)->get($column);
+                    }
+
+                    $column = $column ?? $fieldOrColumn;
+                    $alias = $this->aliases[$field];
+                    $qf = $qf->orderBy("{$alias}.{$column}", $direction);
+                }*/
             }
 
             $whereExpression = null;
             foreach ($this->keys as $key) {
                 $value = $this->getFieldValue($skeleton, $key);
+                $column = $this->em->mapFieldToColumn($this->entity, $key);
 
-                $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
-
-                $qf->bind($key, $value);
                 $expression = $ef->eq("{$this->aliases[0]}.{$column}", ":{$key}");
+                $qf->bind($key, $value);
 
                 if ($whereExpression) $whereExpression = $ef->andExpr($whereExpression, $expression);
                 else $whereExpression = $expression;
@@ -331,19 +345,19 @@
             $results = $statement->fetchAll();
 
             if ($results) {
-                $fields = $this->entityManager->getLocalFields($this->entity);
+                $fields = $this->em->getLocalFields($this->entity);
 
                 foreach ($this->fields as $field => $config) {
                     if (in_array($field, array_keys($fields))) {
-                        $key = strtolower($this->entity) . "_" . $this->entityManager->mapFieldToColumn($this->entity, $field);
+                        $key = strtolower($this->entity) . "_" . $this->em->mapFieldToColumn($this->entity, $field);
                         $value = $results[0][$key];
                     } else {
                         $join = $config->sub('join');
 
-                        if ($config->has('targetEntity')) {
-                            $target = $config->get('targetEntity');
-                            $targetRepo = $this->entityManager->getRepository($target);
-                            $targetFields = $this->entityManager->getLocalFields($target);
+                        if ($config->has('target_entity')) {
+                            $target = $config->get('target_entity');
+                            $targetRepo = $this->em->getRepository($target);
+                            $targetFields = $this->em->getLocalFields($target);
                             
                             if (in_array($join->get('type', 'one'), ['one', 'onetoone', '1:1'])) {
                                 array_walk($targetFields, function(&$value, $key) use($target, $field, $results) {
@@ -440,7 +454,7 @@
             
             // persist it in the orc and in the lt cache
             $this->orc->cache($orcKey, $skeleton);
-            $this->cacheManager->cache(null, $skeleton);
+            $this->cm->cache(null, $skeleton);
 
             return clone $skeleton; // necessary to "sever" the object from the reference cache
         }
@@ -473,14 +487,14 @@
             }
 
             $postPersist = [];
-            $localFields = $this->entityManager->getLocalFields($this->entity);
+            $localFields = $this->em->getLocalFields($this->entity);
             $fields = $this->getDefinition()->sub('fields');
 
             if ($mode == Repository::PERSIST_MODE_INSERT) {
                 foreach ($fields as $field => $fieldConfig) {
                     $postPersist[$field] = [];
                     $value = $this->getFieldValue($object, $field);
-                    $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
+                    $column = $this->em->mapFieldToColumn($this->entity, $field);
 
                     if (in_array($field, array_keys($localFields))) {
                         if ($value === null) continue;
@@ -489,9 +503,9 @@
                         $join = $fieldConfig->sub('join');
 
                         if (in_array($join->get('type', 'one'), ['one', 'onetoone', '1:1'])) {
-                            if ($fieldConfig->has('targetEntity')) {
+                            if ($fieldConfig->has('target_entity')) {
                                 if ($value !== null) {
-                                    $targetRepo = $this->entityManager->getRepository($value);
+                                    $targetRepo = $this->em->getRepository($value);
                                     $targetField = $join->get('foreign');
 
                                     //$value = $targetRepo->persist($value);
@@ -501,7 +515,7 @@
                                 }
                             } else {
                                 if (is_array($value)) { // when creating the object, this column can be the id
-                                    $value = $value[$join->get('foreignColumn')]; // has to be foreign column
+                                    $value = $value[$join->get('local_column')]; // has to be foreign column
                                 }
                                 
                                 $qf->insert($column, $value);
@@ -510,8 +524,8 @@
                             foreach ($value ?? [] as $index => &$mValue) {
                                 if ($mValue === null) continue;
 
-                                if ($fieldConfig->has('targetEntity')) {
-                                    $targetRepo = $this->entityManager->getRepository($mValue);
+                                if ($fieldConfig->has('target_entity')) {
+                                    $targetRepo = $this->em->getRepository($mValue);
                                     $targetFields = $targetRepo->getDefinition()->sub('fields');
                                     $targetField = $join->get('foreign');
 
@@ -524,7 +538,7 @@
                                     }
                                 } else {
                                     // @todo
-                                    //$mValue = $mValue[$join->get('foreignColumn')]; // has to be foreign column
+                                    //$mValue = $mValue[$join->get('local_column')]; // has to be foreign column
                                     //$qf->insert($column, $mValue);
                                 }
                             }
@@ -533,7 +547,7 @@
                 }
 
                 foreach ($this->keys as $key) {
-                    $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
+                    $column = $this->em->mapFieldToColumn($this->entity, $key);
                     $qf->returning([$column => $key]);
                 }
 
@@ -552,7 +566,7 @@
                 foreach ($fields as $field => $fieldConfig) {
                     $postPersist[$field] = [];
                     $value = $this->getFieldValue($object, $field);
-                    $column = $this->entityManager->mapFieldToColumn($this->entity, $field);
+                    $column = $this->em->mapFieldToColumn($this->entity, $field);
 
                     if (in_array($field, array_keys($localFields))) {
                         if ($value === null || in_array($field, $this->keys)) continue;
@@ -561,9 +575,9 @@
                         $join = $fieldConfig->sub('join');
 
                         if (in_array($join->get('type', 'one'), ['one', 'onetoone', '1:1'])) {
-                            if ($fieldConfig->has('targetEntity')) {
+                            if ($fieldConfig->has('target_entity')) {
                                 if ($value !== null) {
-                                    $targetRepo = $this->entityManager->getRepository($value);
+                                    $targetRepo = $this->em->getRepository($value);
                                     $targetField = $join->get('foreign');
 
                                     //$value = $targetRepo->persist($value);
@@ -573,7 +587,7 @@
                                 }
                             } else {
                                 if (is_array($value)) { // when creating the object, this column can be the id
-                                    $value = $value[$join->get('foreignColumn')]; // has to be foreign column
+                                    $value = $value[$join->get('local_column')]; // has to be foreign column
                                 }
                                 
                                 $qf->set($column, $value);
@@ -582,8 +596,8 @@
                             foreach ($value as $index => &$mValue) {
                                 if ($mValue === null) continue;
 
-                                if ($fieldConfig->has('targetEntity')) {
-                                    $targetRepo = $this->entityManager->getRepository($mValue);
+                                if ($fieldConfig->has('target_entity')) {
+                                    $targetRepo = $this->em->getRepository($mValue);
                                     $targetFields = $targetRepo->getDefinition()->sub('fields');
                                     $targetField = $join->get('foreign');
 
@@ -596,7 +610,7 @@
                                     }
                                 } else {
                                     // @todo
-                                    //$mValue = $mValue[$join->get('foreignColumn')]; // has to be foreign column
+                                    //$mValue = $mValue[$join->get('local_column')]; // has to be foreign column
                                     //$qf->insert($column, $mValue);
                                 }
                             }
@@ -608,7 +622,7 @@
                 foreach ($this->keys as $key) {
                     $value = $this->getFieldValue($object, $key);
 
-                    $column = $this->entityManager->mapFieldToColumn($this->entity, $key);
+                    $column = $this->em->mapFieldToColumn($this->entity, $key);
                     $qf->bind($key, $value);
                     $expression = $ef->eq("{$column}", ":{$key}");
 
@@ -625,16 +639,16 @@
                 $fieldConfig = $fields->sub($field);
 
                 foreach ($fieldValues as &$fieldValue) {
-                    if ($fieldConfig->has('targetEntity')) {
-                        $targetRepo = $this->entityManager->getRepository($fieldValue);
+                    if ($fieldConfig->has('target_entity')) {
+                        $targetRepo = $this->em->getRepository($fieldValue);
                         $fieldValue = $targetRepo->persist($fieldValue);
                     }
                 }
             }
 
-            $key = $this->cacheManager->generateKey($object);
+            $key = $this->cm->generateKey($object);
             
-            $this->cacheManager->invalidate($key);
+            $this->cm->invalidate($key);
             $this->orc->invalidate($key);
             
             return $object;
@@ -662,15 +676,15 @@
         }
 
         public function generateFieldMap() {
-            $columnMap = new Collection();
+            $fieldMap = new Collection();
             $definition = $this->getDefinition();
 
             foreach ($definition->sub('fields') as $key => $field) {
-                if (!$field->has('column')) $columnMap->set($key, $key);
-                else $columnMap->set($key, $field->get('column'));
+                if (!$field->has('column')) $fieldMap->set($key, $key);
+                else $fieldMap->set($key, $field->get('column'));
             }
 
-            return $columnMap;
+            return $fieldMap;
         }
 
         public function setFieldValue($object, $fieldName, $value) {
@@ -681,12 +695,12 @@
             if ($type != null) {
                 if ($field->has('transformer')) {
                     $mTransformer = $field->get('transformer'); 
-                    $transformer = $this->entityManager->getTransformer($mTransformer);
+                    $transformer = $this->em->getTransformer($mTransformer);
 
                     if ($transformer == null) {
                         throw new SebastianException("Unable to find transformer {$mTransformer}.");
                     }
-                } else $transformer = $this->entityManager->getTransformer($type);
+                } else $transformer = $this->em->getTransformer($type);
                 
                 if ($transformer != null) {
                     $value = $transformer->transform($value);
@@ -732,7 +746,7 @@
             }
 
             if ($type != null) {
-                $transformer = $this->entityManager->getTransformer($type);
+                $transformer = $this->em->getTransformer($type);
 
                 if ($transformer != null) {
                     $value = $transformer->reverseTransform($value);
@@ -748,7 +762,7 @@
                 $methodName[0] = strtoupper($methodName[0]);
                 $methodName = $prefix . $methodName;
 
-                if (method_exists($this->entityManager->getNamespacePath($this->entity), $methodName)) {
+                if (method_exists($this->em->getNamespacePath($this->entity), $methodName)) {
                     return $methodName;
                 }
             }
@@ -764,7 +778,7 @@
                 $methodName[0] = strtoupper($methodName[0]);
                 $methodName = $prefix . $methodName;
 
-                if (method_exists($this->entityManager->getNamespacePath($this->entity), $methodName)) {
+                if (method_exists($this->em->getNamespacePath($this->entity), $methodName)) {
                     return $methodName;
                 }
             }
@@ -779,7 +793,7 @@
         }
 
         public function getConnection() {
-            return $this->entityManager->getConnection();
+            return $this->em->getConnection();
         }
 
         public function getDefinition() {

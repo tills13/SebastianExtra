@@ -145,11 +145,11 @@
                 $type = $config->get('type', 'group');
 
                 if ($type === 'group') {
-                    $field = new Form($this->form, $fieldName);
+                    $field = new Form($this->form, $fieldName, $config);
+                    //$field->setAttribute('mapped', $config->getAttribute)
 
                     foreach ($config['fields'] as $key => $mField) {
                         $mField = new self::$fieldTypes[$mField['type']]($field, $key, $mField['attributes'] ?? []);
-
                         $field->addField($mField, $mField->getName());
                     }
 

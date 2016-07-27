@@ -2,43 +2,63 @@
     namespace SebastianExtra\Templating;
 
     use Sebastian\Core\Context\ContextInterface;
+    use Sebastian\Utility\ClassMapper\ClassMapper;
     use Sebastian\Utility\Collection\Collection;
+    use Sebastian\Utility\Configuration\Configuration;
     use SebastianExtra\Templating\Exception\RenderException;
     use SebastianExtra\Templating\Macro\SRenderMacroInterface;
 
     class SRender {
         protected $context;
-
+        protected $config;
         protected $templateDirs;
-        protected $validTemplateExtensions = ['.php'];
-        protected $macros;
 
-        protected $master;
+        protected $validTemplateExtensions = ['.php'];
+
+        protected $defaultScopeVariables;
+        protected $macros;
         protected $blocks;
         protected $extends;
 
         protected $blockContext;
         protected $templateContext;
 
-        public function __construct(ContextInterface $context, $master = 'master.php', $templateDirs = []) {
+        public function __construct(ContextInterface $context, Configuration $config, $templateDirs = []) {
             $this->context = $context;
+            $this->config = $config;
             $this->templateDirs =  $templateDirs;//__DIR__ . DIRECTORY_SEPARATOR . "templates";
-            $this->master = $master;
+            
+            $this->defaultScopeVariables= [];
+            $this->macros = [];
             $this->blocks = [];
             $this->extends = [];
+
             $this->blockContext = [];
-            $this->macros = new Collection();
+            $this->templateContext = null;
+
+            $this->init();
+        }
+
+        public function init() {
+            if ($this->config->has('utility_class')) {
+                $class = $this->config->get('utility_class');
+                $class = ClassMapper::parse($class);
+                $this->defaultScopeVariables['utilities'] = new $class(); 
+            }
+
+            //var_dump($this->defaultScopeVariables['utilities']::niceBytes(1000));
+            //die();
         }
 
         public function __call($method, $arguments = []) {
-            if ($this->macros->has($method)) {
-                $macro = $this->macros->get($method);
+            if (isset($this->macros[$method])) {
+                $macro = $this->macros[$method];
                 return call_user_func_array($macro, $arguments);
             } else throw new RenderException("Macro {$method} does not exist...");
         }
 
         public function addMacro($name, Callable $macro) {
-            $this->macros->set($name, $macro);
+            $this->macros[$name] = $macro;
         }
 
         public function addTemplateDirectories(array $directories = []) {
@@ -128,6 +148,7 @@
 
             $this->start();
 
+            foreach ($this->defaultScopeVariables as $key => $value) $$key = $value;
             foreach ($data as $key => $value) $$key = $value;
             
             $router = $this->context->getRouter();

@@ -21,7 +21,7 @@
             $config = !is_null($config) ? $config->sub('components.sebastian_extra') : $this->getConfig();
             $components = $context->getComponents();
 
-            $context->templating = new SRender($this->getContext(), null, array_map(function($component) {
+            $context->templating = new SRender($this->getContext(), $config->sub('templating', []), array_map(function($component) {
                 return $component->getResourceUri('views', true);
             }, $components));
 
@@ -49,7 +49,7 @@
                 });
 
                 $templating->addMacro('formLabel', function($form, $field, $default = null) use ($templating) {
-                    if (!$field instanceof Form\Field\FieldInterface) {
+                    if (!$field instanceof Form\FormInterface) {
                         $field = $form->get($field);
                     }
 
