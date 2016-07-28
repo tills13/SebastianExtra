@@ -5,8 +5,10 @@
 
     class CheckboxField extends Form {
         public function setValue($value = false) {
+            if ($value == 'checked' || $value == 'on') $value = true;
+
             $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
-            $this->value = $value;
+            $this->value = $value ?? false;
         }
 
         public function getValue() {

@@ -30,7 +30,7 @@
         protected $validated;
         protected $value;
 
-        public function __construct(Form $parent = null, $name, $attributes = []) {       
+        public function __construct(Form $parent = null, $name, $value = null, $attributes = []) {       
             $this->action = null;
 
             if (is_array($attributes)) $this->attributes = new Collection($attributes);
@@ -44,6 +44,8 @@
             $this->parent = $parent;
             $this->submitted = false;
             $this->validated = false;
+
+            $this->setValue($value);
         }
 
         public function setAction($action) {
@@ -253,7 +255,7 @@
                 if (!$isSubmitted && $field instanceof Field\CheckboxField) {
                     $value = false;
                 } else {
-                    $value = $data["{$field->getName()}"];
+                    $value = $data["{$field->getName()}"] ?? $field->getValue();
                 }
 
                 if ($mapped) $field->setValue($value);

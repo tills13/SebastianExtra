@@ -58,11 +58,11 @@
             return $this;
         }
 
-        public function add($name, $type, $params = []) {
+        public function add($name, $type, $value = null, $params = []) {
             if (!array_key_exists($type, self::$fieldTypes)) {
                 throw new FormBuilderException("Field type {$type} does not exist.");
             } else {
-                $field = new self::$fieldTypes[$type]($this->form, $name, $params);
+                $field = new self::$fieldTypes[$type]($this->form, $name, $value, $params);
             }
             
             $this->form->addField($field);
@@ -145,11 +145,11 @@
                 $type = $config->get('type', 'group');
 
                 if ($type === 'group') {
-                    $field = new Form($this->form, $fieldName, $config);
+                    $field = new Form($this->form, $fieldName, null, $config);
                     //$field->setAttribute('mapped', $config->getAttribute)
 
                     foreach ($config['fields'] as $key => $mField) {
-                        $mField = new self::$fieldTypes[$mField['type']]($field, $key, $mField['attributes'] ?? []);
+                        $mField = new self::$fieldTypes[$mField['type']]($field, $key, $mField['value'] ?? null, $mField['attributes'] ?? []);
                         $field->addField($mField, $mField->getName());
                     }
 
@@ -158,12 +158,13 @@
                 }
 
                 $fieldAttributes = $config->get('attributes', []);
+                $value = $config->get('value', null);
 
                 if ($config->has('map')) {
                     $fieldAttributes['map'] = $fieldAttributes['map'] ?? $config->get('map');
                 }
 
-                $this->add($fieldName, $type, $fieldAttributes);
+                $this->add($fieldName, $type, $value, $fieldAttributes);
 
                 $constraints = $config->get('constraints', []);
                 
