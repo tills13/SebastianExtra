@@ -50,7 +50,11 @@
             $this->config = $config->extend([ 'use_reflection' => true ]);
 
             $this->entity = $entity;
-            $this->class = $entityManager->getNamespacePath($this->entity);
+
+            if ($this->entity) {
+                $this->entityClass = $entityManager->getNamespacePath($this->entity);
+            }
+            
             $this->orc = $entityManager->getObjectReferenceCache();
 
             $this->initCalled = false;
@@ -68,9 +72,8 @@
         public function init() {
             $this->initCalled = true;
 
-            if ($this->entity != null) {
+            if ($this->entityClass != null) {
                 $this->definition = $this->em->getDefinition($this->entity);
-                $this->nsPath = $this->em->getNamespacePath($this->entity);
 
                 $this->table = $this->definition->get('table');
                 $this->keys = $this->definition->get('keys');
@@ -79,11 +82,12 @@
                 $this->joins = $this->em->computeJoinSets($this->entity);
                 $this->aliases = $this->em->generateTableAliases($this->entity, $this->joins);
                 $this->columns = $this->em->computeColumnSets($this->entity, $this->joins, $this->aliases);
-            }
 
-            $this->reflection = new \ReflectionClass($this->class);
-            $this->columnMap = $this->generateColumnMap();
-            $this->fieldMap = $this->generateFieldMap();
+                $this->reflection = new \ReflectionClass($this->entityClass);
+
+                $this->columnMap = $this->generateColumnMap();
+                $this->fieldMap = $this->generateFieldMap();
+            }
         }
 
         /**
@@ -92,13 +96,8 @@
          * @param  array  $params [description]
          * @return [type]         [description]
          */
-        public function build($object = null, $fields = []) {
-            if (!$object) {
-                $classPath = $this->em->getNamespacePath($this->entity);
-                $object = new $classPath();
-            }
-
-            if (!$fields) $fields = [];
+        public function build($object = null, array $fields = []) {
+            if (!$object) $object = new $this->entityClass();
 
             foreach ($fields as $field => $value) {
                 $object = $this->setFieldValue($object, $field, $value);
@@ -308,6 +307,20 @@
                 $foreignColumn = "{$this->aliases[$field]}.{$foreignColumn}";
                 $expression = $ef->eq($foreignColumn, $localColumn);
 
+                if ($join->has('where')) {
+                    $whereExpression = $join->get('where');
+
+                    $whereExpression = preg_replace_callback('/\$([^ ]+)/', function($match) use ($field, $target) {
+                        $filterField = $match[1];
+
+                        $column = $this->em->mapFieldToColumn($target, $filterField);
+                        $column = "{$this->aliases[$field]}.{$column}";
+                        return $column;
+                    }, $whereExpression);
+
+                    $expression = $ef->andExpr($expression, $whereExpression);
+                }
+
                 $alias = $this->aliases[$field];
                 $qf = $qf->join(Join::TYPE_LEFT, [$alias => $table], $expression);
 
@@ -508,8 +521,13 @@
                                     $targetRepo = $this->em->getRepository($value);
                                     $targetField = $join->get('foreign');
 
-                                    //$value = $targetRepo->persist($value);
                                     $mValue = $targetRepo->getFieldValue($value, $targetField);
+
+                                    // i hate this
+                                    $key = $this->cm->generateKey($value);
+            
+                                    $this->cm->invalidate($key);
+                                    $this->orc->invalidate($key);
 
                                     $qf->insert($column, $mValue);                                    
                                 }
@@ -533,9 +551,6 @@
                                     $inverse = $this->getFieldValue($object, $join->get('local'));
 
                                     if ($inverse == null) $postPersist[$field][] = $mValue;
-                                    else {
-                                        //$mValue = $targetRepo->persist($mValue);
-                                    }
                                 } else {
                                     // @todo
                                     //$mValue = $mValue[$join->get('local_column')]; // has to be foreign column
@@ -580,8 +595,13 @@
                                     $targetRepo = $this->em->getRepository($value);
                                     $targetField = $join->get('foreign');
 
-                                    //$value = $targetRepo->persist($value);
                                     $mValue = $targetRepo->getFieldValue($value, $targetField);
+
+                                    // i hate this
+                                    $key = $this->cm->generateKey($value);
+            
+                                    $this->cm->invalidate($key);
+                                    $this->orc->invalidate($key);
 
                                     $qf->set($column, $mValue);                                    
                                 }
@@ -632,6 +652,7 @@
 
                 $qf = $qf->where($whereExpression);
                 $query = $qf->getQuery();
+
                 $result = $connection->execute($query, $query->getBinds());
             }
 
@@ -762,7 +783,7 @@
                 $methodName[0] = strtoupper($methodName[0]);
                 $methodName = $prefix . $methodName;
 
-                if (method_exists($this->em->getNamespacePath($this->entity), $methodName)) {
+                if (method_exists($this->entityClass, $methodName)) {
                     return $methodName;
                 }
             }
@@ -778,7 +799,7 @@
                 $methodName[0] = strtoupper($methodName[0]);
                 $methodName = $prefix . $methodName;
 
-                if (method_exists($this->em->getNamespacePath($this->entity), $methodName)) {
+                if (method_exists($this->entityClass, $methodName)) {
                     return $methodName;
                 }
             }

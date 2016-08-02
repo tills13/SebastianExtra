@@ -45,9 +45,6 @@
                 $class = ClassMapper::parse($class);
                 $this->defaultScopeVariables['utilities'] = new $class(); 
             }
-
-            //var_dump($this->defaultScopeVariables['utilities']::niceBytes(1000));
-            //die();
         }
 
         public function __call($method, $arguments = []) {

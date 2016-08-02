@@ -12,6 +12,7 @@
 
     use SebastianExtra\Repository\Repository;
     use SebastianExtra\Repository\Transformer\DatetimeTransformer;
+    use SebastianExtra\Repository\Transformer\ArrayTransformer;
     use SebastianExtra\Repository\Transformer\TransformerInterface;
 
     use Sebastian\Utility\Collection\Collection;
@@ -56,6 +57,8 @@
             }
 
             $this->addTransformer(new DatetimeTransformer());
+            $this->addTransformer(new ArrayTransformer());
+            //$this->addTransformer(new Array());
         }
 
         public function delete($object) {
@@ -87,8 +90,7 @@
                     $connection->commit();
                     return $object;
                 } else {
-                    //var_dump($object);
-                    //throw new SebastianException("Repo not found for " . get_class($object));
+                    throw new SebastianException("Repo not found for " . get_class($object));
                 }                
             } catch(PDOException $e) {
                 $connection->rollback(); die();
@@ -267,7 +269,7 @@
          * @return [type]
          */
         public function getNamespacePath($class) {
-            if ($this->entities->has($class)) {
+            if ($this->entities->has($class) && $this->entities->has("{$class}.entity")) {
                 $entityInfo = $this->entities[$class];
                 $entity = $entityInfo['entity'];
 
@@ -405,5 +407,9 @@
 
         public function expr() {
             return new ExpressionBuilder();
+        }
+
+        public function getQueryBuilder() {
+            return new QueryBuilder($this);
         }
     }
