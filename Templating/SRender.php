@@ -16,6 +16,8 @@
         protected $validTemplateExtensions = ['.php'];
 
         protected $defaultScopeVariables;
+        protected $contextPreprocessors;
+
         protected $macros;
         protected $blocks;
         protected $extends;
@@ -28,7 +30,8 @@
             $this->config = $config;
             $this->templateDirs =  $templateDirs;//__DIR__ . DIRECTORY_SEPARATOR . "templates";
             
-            $this->defaultScopeVariables= [];
+            $this->defaultScopeVariables = [];
+            $this->contextPreprocessors = [];
             $this->macros = [];
             $this->blocks = [];
             $this->extends = [];
@@ -40,10 +43,10 @@
         }
 
         public function init() {
-            if ($this->config->has('utility_class')) {
-                $class = $this->config->get('utility_class');
-                $class = ClassMapper::parse($class);
-                $this->defaultScopeVariables['utilities'] = new $class(); 
+            if (($utilityClass = $this->config->get('utility_class')) !== null) { 
+                $utilityClass = ClassMapper::parseClass($utilityClass);
+                //Injector::create($utilityClass);
+                $this->defaultScopeVariables['utility'] = new $utilityClass(); 
             }
         }
 
@@ -120,8 +123,8 @@
         }
 
         public function extend($template, $condition = true) {
-            if ($template == null) {
-                throw new RenderException("Must specify a template extension", 1);
+            if ($template == null && $condition) {
+                throw new RenderException("Must specify a template", 1);
             } else if (!$condition) return;
 
             $this->extends[$this->templateContext] = $template;
@@ -140,6 +143,11 @@
         }
 
         public function render($template, $data = [], $disableExtend = false) {
+            foreach ($this->contextPreprocessors as $preProcessor) {
+                $inject = $preProcessor($this, $template, $data) ?? [];
+                foreach ($inject as $key => $value) $$key = $value;
+            }
+
             $this->templateContext = $template;
             $path = $this->getTemplatePath($template);
 
@@ -168,7 +176,9 @@
             return $rendered;
         }
 
-        //public function
+        public function registerContextPreprocessor(Callable $callable) {
+            $this->contextPreprocessors[] = $callable;
+        }
 
         public function start() {
             ob_start();

@@ -19,7 +19,8 @@
             'text' => Field\InputField::class,
             'number' => Field\NumberField::class,
             'password' => Field\PasswordField::class,
-            'checkbox' => Field\CheckboxField::class
+            'checkbox' => Field\CheckboxField::class,
+            'file' => Field\FileField::class
         ];
 
         protected static $constraintTypes = [
@@ -115,7 +116,10 @@
                 throw new FormBuilderException("Form name cannot be blank.");
             }
 
-            $this->form = new Form(null, $name);
+            $this->form = new Form(null, $name, null, [
+                'enctype' => 'application/x-www-form-urlencoded'
+            ]);
+            
             return $this;
         }
 

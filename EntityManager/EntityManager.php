@@ -15,6 +15,7 @@
     use SebastianExtra\Repository\Transformer\ArrayTransformer;
     use SebastianExtra\Repository\Transformer\TransformerInterface;
 
+    use Sebastian\Utility\ClassMapper\ClassMapper;
     use Sebastian\Utility\Collection\Collection;
     use Sebastian\Utility\Configuration\Configuration;
     use Sebastian\Utility\Utility\Utils;
@@ -58,7 +59,6 @@
 
             $this->addTransformer(new DatetimeTransformer());
             $this->addTransformer(new ArrayTransformer());
-            //$this->addTransformer(new Array());
         }
 
         public function delete($object) {
@@ -269,14 +269,8 @@
          * @return [type]
          */
         public function getNamespacePath($class) {
-            if ($this->entities->has($class) && $this->entities->has("{$class}.entity")) {
-                $entityInfo = $this->entities[$class];
-                $entity = $entityInfo['entity'];
-
-                $component = substr($entity, 0, strpos($entity, ':'));
-                $subNamespace = substr($entity, strpos($entity, ':') + 1);
-                $component = $this->context->getComponent($component);
-                return "{$component->getNamespace()}\\{$subNamespace}";
+            if (($entity = $this->entities->get("{$class}.entity")) !== null) {
+                return ClassMapper::parseClass($entity, "Entity");
             } else return null;
         }
 
@@ -309,30 +303,8 @@
                     else if ($this->config->has('repository')) $config = $this->config->sub('repository');
                     else $config = new Configuration();
 
-                    if ($info->has('repository')) {
-                        $repo = $info->get('repository');
-                        $repository = null;
-
-                        if (strstr($repo, ':')) {
-                            $component = substr($repo, 0, strpos($repo, ':'));
-                            $component = $this->context->getComponent($component);
-                            
-                            $repo = substr($repo, strpos($repo, ':') + 1);
-                            if (!Utils::endsWith($repo, 'Repository')) $repo = $repo . 'Repository';
-
-                            if ($component->hasClass($repo)) {
-                                $repository = $component->getClass($repo);
-                            }
-                        } else {
-                            $components = $this->context->getComponents(true);
-                            if (!Utils::endsWith($repo, 'Repository')) $repo = $repo . 'Repository';
-
-                            foreach ($components as $component) {
-                                if ($component->hasClass($repo)) {
-                                    $repository = $component->getClass($repo);
-                                }
-                            }
-                        }
+                    if (($repository = $info->get('repository')) !== null) {
+                        $repository = ClassMapper::parseClass($repository, 'Repository');
 
                         if ($repository) {
                             $repo = new $repository($this, $this->context->getCacheManager(), null, $config, $class);
