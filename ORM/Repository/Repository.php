@@ -1,10 +1,11 @@
 <?php
-    namespace SebastianExtra\Repository;
+    namespace SebastianExtra\ORM\Repository;
 
-    use \PDO;
     use \Exception;
+    use \PDO;
+    use \ReflectionClass;
 
-    use SebastianExtra\EntityManager\EntityManager;
+    use SebastianExtra\ORM\EntityManager;
 
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Database\Query\Expression\Expression;
@@ -12,11 +13,9 @@
     use Sebastian\Core\Database\Query\Part\Join;
     use Sebastian\Core\Database\Query\QueryFactory;
     use Sebastian\Core\Exception\SebastianException;
-    use Sebastian\Core\Repository\Transformer\TransformerInterface;
 
     use Sebastian\Utility\Collection\Collection;
     use Sebastian\Utility\Configuration\Configuration;
-    use Sebastian\Utility\Utility\Utils;
 
     /**
      * Repository
@@ -28,22 +27,22 @@
      */
     class Repository {
         protected static $tag = "Repository";
-
-        protected $config;
-
-        protected $entity;
-        protected $class;
-        protected $definition;
         
-        protected $connection;
-        protected $em;
         protected $cm;
+        protected $config;
+        protected $connection;
+        protected $definition;
+        protected $em;
+        protected $entity;
+        protected $entityClass;
+        protected $initialized = false;
+        protected $reflection;
         protected $orc;
         
         public function __construct(EntityManager $entityManager, CacheManager $cacheManager = null, Logger $logger = null, Configuration $config = null, $entity = null) {
             $this->em = $entityManager;
             $this->cm = $cacheManager;
-            $this->logger = $logger;
+            //$this->logger = $logger;
             $this->connection = $entityManager->getConnection();
 
             if ($config == null) $config = new Configuration();
@@ -56,8 +55,6 @@
             }
             
             $this->orc = $entityManager->getObjectReferenceCache();
-
-            $this->initCalled = false;
             $this->init();
         }
 
@@ -70,8 +67,6 @@
          * @return none
          */
         public function init() {
-            $this->initCalled = true;
-
             if ($this->entityClass != null) {
                 $this->definition = $this->em->getDefinition($this->entity);
 
@@ -83,11 +78,13 @@
                 $this->aliases = $this->em->generateTableAliases($this->entity, $this->joins);
                 $this->columns = $this->em->computeColumnSets($this->entity, $this->joins, $this->aliases);
 
-                $this->reflection = new \ReflectionClass($this->entityClass);
+                $this->reflection = new ReflectionClass($this->entityClass);
 
                 $this->columnMap = $this->generateColumnMap();
                 $this->fieldMap = $this->generateFieldMap();
             }
+
+            $this->initialized = true;
         }
 
         /**
@@ -133,6 +130,10 @@
             $this->cm->invalidate($key);
         }
 
+        public function findOne($where = [], $options = []) {
+            return $this->find($where, $options)[0] ?? null;
+        }
+
         public function find($where = [], $options = []) {
             $where = $where ?: [];
 
@@ -151,18 +152,18 @@
             $expression = null;
 
             foreach ($where as $field => $param) {
-                if ($this->fields->has($field)) {
-                    $column = $em->mapFieldToColumn($this->entity, $field);
-                } else {
-                    $column = $field;
-                    throw new Exception("field {$field} doesn't map to a column for {$this->entity}");
-                }
-
                 $tempExpr = null; // reset the temp expression
 
                 if ($param instanceof Expression) {
                     $tempExpr = $param;
                 } else {
+                    if ($this->fields->has($field)) {
+                        $column = $em->mapFieldToColumn($this->entity, $field);
+                    } else {
+                        $column = $field;
+                        throw new Exception("field {$field} doesn't map to a column for {$this->entity}");
+                    }
+
                     if (!is_array($param)) $params = [$param]; // naming 
                     else $params = $param; 
 
@@ -578,6 +579,10 @@
 
                 $qf->update($this->getTable());
 
+                if (($field = $this->config->get('modified_at_field', false)) !== false) {
+                    $this->setFieldValue($object, $field, date_create());
+                }
+
                 foreach ($fields as $field => $fieldConfig) {
                     $postPersist[$field] = [];
                     $value = $this->getFieldValue($object, $field);
@@ -833,7 +838,7 @@
             return $this->table;
         }
 
-        public function setTransformer(ColumnTransformerInterface $transformer) {
+        public function setTransformer(TransformerInterface $transformer) {
             $this->transformer = $transformer;
         }
 

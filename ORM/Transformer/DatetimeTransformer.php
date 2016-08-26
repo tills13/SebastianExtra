@@ -1,5 +1,8 @@
 <?php
-    namespace SebastianExtra\Repository\Transformer;
+    namespace SebastianExtra\ORM\Transformer;
+
+    use \DateTime;
+    use SebastianExtra\ORM\Transformer\Exception\TransformException;
 
     class DatetimeTransformer extends BaseTransformer {
         protected $name; 
@@ -9,12 +12,13 @@
         }
 
         public function transform($value) {
-            return new \DateTime($value);
+            if ($value instanceof DateTime) return $value;
+            else if (is_object($value)) throw new TransformException();
+            return new DateTime($value);
         }
 
         public function reverseTransform($value) {
             if ($value == null) return null;
-            //if (!$value instanceof \DateTime) throw new TransformException();
             return $value->format('Y-m-d G:i:s');
         }
     }

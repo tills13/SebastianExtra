@@ -3,20 +3,17 @@
 
     use Sebastian\Core\Component\Component;
     use Sebastian\Core\Context\ContextInterface;
+    use Sebastian\Core\DependencyInjection\Injector;
     use Sebastian\Core\Event\Event;
     use Sebastian\Core\Event\EventBus;
     use Sebastian\Core\Http\Response\Response;
     use Sebastian\Utility\Configuration\Configuration;
 
-    use SebastianExtra\EntityManager\EntityManager;
+    use SebastianExtra\ORM\EntityManager;
     use SebastianExtra\Form\FormBuilder;
     use SebastianExtra\Templating\SRender;
 
     class SebastianExtraComponent extends Component {
-        public function __construct(ContextInterface $context, $name, Configuration $config = null) {
-            parent::__construct($context, $name, $config);
-        }
-
         public function setup() {
             $context = $this->getContext();
             $config = $this->getConfig();
@@ -26,13 +23,17 @@
                 return $component->getResourceUri('views', true);
             }, $components));
 
+            Injector::registerByClass($context->templating);            
+
             if ($config->get('orm.enabled', false)) {
                 $context->entityManager = new EntityManager($context, $config->sub('orm', []));
+                Injector::registerByClass($context->entityManager);
             }
 
-            if ($config->get('form.enabled', true)) {
+            if ($config->get('form.enabled', false)) {
                 $context->formBuilder = new FormBuilder($context, $config->sub('form'));
                 $this->setupFormTemplatingMacros();
+                Injector::registerByClass($context->formBuilder);
             }
         }
 
@@ -77,9 +78,5 @@
                     }
                 });
             }
-        }
-
-        public function checkRequirements(ContextInterface $context) {
-            return true;
         }
     }

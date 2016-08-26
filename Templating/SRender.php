@@ -156,6 +156,7 @@
             foreach ($this->defaultScopeVariables as $key => $value) $$key = $value;
             foreach ($data as $key => $value) $$key = $value;
             
+            $application = $this->context;
             $router = $this->context->getRouter();
             $request = $this->context->getRequest();
             $session = $request->getSession();

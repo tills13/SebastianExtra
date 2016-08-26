@@ -1,5 +1,5 @@
 <?php
-    namespace SebastianExtra\Repository\Transformer;
+    namespace SebastianExtra\ORM\Transformer;
 
     abstract class BaseTransformer implements TransformerInterface {
         protected $name;

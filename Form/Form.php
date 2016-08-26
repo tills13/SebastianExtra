@@ -10,7 +10,7 @@
     use SebastianExtra\Form\Constraint\ConstraintInterface;
     use SebastianExtra\Form\Error\ErrorInterface;
     use SebastianExtra\Form\Exception\FormException;
-    use SebastianExtra\Repository\Repository;
+    use SebastianExtra\ORM\Repository\Repository;
 
     class Form implements FormInterface {
         const METHOD_GET = "GET";

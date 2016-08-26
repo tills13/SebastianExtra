@@ -1,5 +1,5 @@
 <?php
-    namespace SebastianExtra\Repository\Transformer;
+    namespace SebastianExtra\ORM\Transformer;
 
     class ArrayTransformer extends BaseTransformer {
         protected $name; 

@@ -1,5 +1,5 @@
 <?php
-    namespace SebastianExtra\EntityManager;
+    namespace SebastianExtra\ORM;
 
     use \ReflectionClass;
     use \ReflectionException;
@@ -7,13 +7,12 @@
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Context\ContextInterface;
     use Sebastian\Core\Database\Query\Expression\ExpressionBuilder;
-    use Sebastian\Core\Model\EntityInterface;
     use Sebastian\Core\Exception\SebastianException;
 
-    use SebastianExtra\Repository\Repository;
-    use SebastianExtra\Repository\Transformer\DatetimeTransformer;
-    use SebastianExtra\Repository\Transformer\ArrayTransformer;
-    use SebastianExtra\Repository\Transformer\TransformerInterface;
+    use SebastianExtra\ORM\Repository\Repository;
+    use SebastianExtra\ORM\Transformer\DatetimeTransformer;
+    use SebastianExtra\ORM\Transformer\ArrayTransformer;
+    use SebastianExtra\ORM\Transformer\TransformerInterface;
 
     use Sebastian\Utility\ClassMapper\ClassMapper;
     use Sebastian\Utility\Collection\Collection;
@@ -299,12 +298,10 @@
                 if ($this->entities->has($class)) {
                     $info = $this->entities->sub($class);
 
-                    if ($info->has('config')) $config = $info->sub('config');
-                    else if ($this->config->has('repository')) $config = $this->config->sub('repository');
-                    else $config = new Configuration();
+                    $config = $info->sub('config')->extend($this->config->get('repository', []));
 
                     if (($repository = $info->get('repository')) !== null) {
-                        $repository = ClassMapper::parseClass($repository, 'Repository');
+                        $repository = ClassMapper::parseClass($repository, 'ORM\Repository');
 
                         if ($repository) {
                             $repo = new $repository($this, $this->context->getCacheManager(), null, $config, $class);
