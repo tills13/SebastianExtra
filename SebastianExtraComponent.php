@@ -35,6 +35,14 @@
                 $this->setupFormTemplatingMacros();
                 Injector::registerByClass($context->formBuilder);
             }
+
+            EventBus::register(Event::VIEW, function(Event $event = null) {
+                if (!($responseContent = $event->getResponse()) instanceof Response) {
+                    $response = new Response($responseContent);
+                    $response->sendHttpResponseCode(Response::HTTP_OK);
+                    $event->setResponse($response);
+                }
+            });
         }
 
         private function setupFormTemplatingMacros() {
@@ -68,14 +76,6 @@
                     }
 
                     return $templating->render('progress_bar', $parameters);
-                });
-
-                EventBus::register(Event::VIEW, function(Event $event = null) {
-                    if (!($responseContent = $event->getResponse()) instanceof Response) {
-                        $response = new Response($responseContent);
-                        $response->sendHttpResponseCode(Response::HTTP_OK);
-                        $event->setResponse($response);
-                    }
                 });
             }
         }

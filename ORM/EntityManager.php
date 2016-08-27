@@ -8,16 +8,16 @@
     use Sebastian\Core\Context\ContextInterface;
     use Sebastian\Core\Database\Query\Expression\ExpressionBuilder;
     use Sebastian\Core\Exception\SebastianException;
+    use Sebastian\Core\DependencyInjection\Injector;
+    use Sebastian\Utility\ClassMapper\ClassMapper;
+    use Sebastian\Utility\Collection\Collection;
+    use Sebastian\Utility\Configuration\Configuration;
+    use Sebastian\Utility\Utility\Utils;
 
     use SebastianExtra\ORM\Repository\Repository;
     use SebastianExtra\ORM\Transformer\DatetimeTransformer;
     use SebastianExtra\ORM\Transformer\ArrayTransformer;
     use SebastianExtra\ORM\Transformer\TransformerInterface;
-
-    use Sebastian\Utility\ClassMapper\ClassMapper;
-    use Sebastian\Utility\Collection\Collection;
-    use Sebastian\Utility\Configuration\Configuration;
-    use Sebastian\Utility\Utility\Utils;
     
     /**
      * EntityManager
@@ -58,6 +58,8 @@
 
             $this->addTransformer(new DatetimeTransformer());
             $this->addTransformer(new ArrayTransformer());
+            
+            Injector::getInstance()->registerResolver(new DependencyInjection\EntityResolver($this));
         }
 
         public function delete($object) {

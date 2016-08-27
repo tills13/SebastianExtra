@@ -3,7 +3,7 @@
 
     use \Exception;
 
-    use Sebastian\Core\Model\EntityInterface;
+    use Sebastian\Core\Entity\EntityInterface;
     use Sebastian\Core\Http\Request;
     use Sebastian\Utility\Collection\Collection;
    
