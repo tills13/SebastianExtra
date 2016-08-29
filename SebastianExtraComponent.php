@@ -32,8 +32,8 @@
 
             if ($config->get('form.enabled', false)) {
                 $context->formBuilder = new FormBuilder($context, $config->sub('form'));
-                $this->setupFormTemplatingMacros();
                 Injector::registerByClass($context->formBuilder);
+                $this->setupFormTemplatingMacros();
             }
 
             EventBus::register(Event::VIEW, function(Event $event = null) {
