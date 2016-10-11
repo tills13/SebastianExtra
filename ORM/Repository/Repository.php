@@ -6,6 +6,7 @@
     use \ReflectionClass;
 
     use SebastianExtra\ORM\EntityManager;
+    use SebastianExtra\ORM\Entity\GenericEntity;
 
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Database\Query\Expression\Expression;
@@ -17,7 +18,7 @@
 
     use Sebastian\Utility\Collection\Collection;
     use Sebastian\Utility\Configuration\Configuration;
-
+    
     /**
      * Repository
      *
@@ -34,8 +35,11 @@
         protected $connection;
         protected $definition;
         protected $em;
+        
         protected $entity;
         protected $entityClass;
+        protected $genericEntity;
+
         protected $initialized = false;
         protected $reflection;
         protected $orc;
@@ -52,10 +56,14 @@
             $this->entity = $entity;
 
             if ($this->entity) {
-                $this->entityClass = $entityManager->getNamespacePath($this->entity);
+                $this->entityClass = $entityManager->getNamespacePath($this->entity) ?? GenericEntity::class;
+            } else {
+                $this->genericEntity = true;
+                $this->entityClass = GenericEntity::class;
             }
             
             $this->orc = $entityManager->getObjectReferenceCache();
+            $this->entityCache = $entityManager->getEntityCache();
             $this->init();
         }
 
@@ -79,8 +87,15 @@
                 $this->aliases = $this->em->generateTableAliases($this->entity, $this->joins);
                 $this->columns = $this->em->computeColumnSets($this->entity, $this->joins, $this->aliases);
 
-                $this->reflection = new ReflectionClass($this->entityClass);
+                if ($this->entityClass === GenericEntity::class) {
+                    $this->config->set('use_reflection', false);
+                    $this->genericEntity = true;
+                }
 
+                if ($this->config->get('use_reflection', false)) {
+                    $this->reflection = new ReflectionClass($this->entityClass);
+                }
+                
                 $this->columnMap = $this->generateColumnMap();
                 $this->fieldMap = $this->generateFieldMap();
             }
@@ -127,8 +142,8 @@
             $query = $qf->getQuery();
             $result = $this->connection->execute($query, $query->getBinds());
 
-            $key = $this->cm->generateKey($object);
-            $this->cm->invalidate($key);
+            $key = $this->entityCache->generateKey($object);
+            $this->entityCache->invalidate($key);
         }
 
         public function findOne($where = [], $options = []) {
@@ -239,7 +254,7 @@
         const JOIN_TYPE_JOIN_TABLE = 1;
         public function get($params) {
             if (!is_array($params)) {
-                if (count($this->keys) != 1) {
+                if (count($this->keys) > 1) {
                     throw new SebastianException(
                         "Cannot use simplified method signature when entity has more than one primary key"
                     );
@@ -267,9 +282,10 @@
             }
 
             // then check long term cache
-            $cmKey = $this->cm->generateKey($skeleton);
-            if ($this->cm->isCached($cmKey)) {
-                return $this->cm->load($cmKey);
+
+            $cmKey = $this->entityCache->generateKey($skeleton);
+            if ($this->entityCache->isCached($cmKey)) {
+                return $this->entityCache->load($cmKey);
             }
 
             $qb = $qb->select($this->columns)
@@ -469,7 +485,7 @@
             
             // persist it in the orc and in the lt cache
             $this->orc->cache($orcKey, $skeleton);
-            $this->cm->cache(null, $skeleton);
+            $this->entityCache->cache(null, $skeleton);
 
             return clone $skeleton; // necessary to "sever" the object from the reference cache
         }
@@ -526,9 +542,9 @@
                                     $mValue = $targetRepo->getFieldValue($value, $targetField);
 
                                     // i hate this
-                                    $key = $this->cm->generateKey($value);
+                                    $key = $this->entityCache->generateKey($value);
             
-                                    $this->cm->invalidate($key);
+                                    $this->entityCache->invalidate($key);
                                     $this->orc->invalidate($key);
 
                                     $qf->insert($column, $mValue);                                    
@@ -604,9 +620,9 @@
                                     $mValue = $targetRepo->getFieldValue($value, $targetField);
 
                                     // i hate this
-                                    $key = $this->cm->generateKey($value);
+                                    $key = $this->entityCache->generateKey($value);
             
-                                    $this->cm->invalidate($key);
+                                    $this->entityCache->invalidate($key);
                                     $this->orc->invalidate($key);
 
                                     $qf->set($column, $mValue);                                    
@@ -673,9 +689,9 @@
                 }
             }
 
-            $key = $this->cm->generateKey($object);
+            $key = $this->entityCache->generateKey($object);
             
-            $this->cm->invalidate($key);
+            $this->entityCache->invalidate($key);
             $this->orc->invalidate($key);
             
             return $object;
@@ -784,6 +800,8 @@
         }
 
         public function getGetterMethod($key, $die = true) {
+            if ($this->genericEntity) return "get{$key}";
+
             foreach (['get','is','has'] as $prefix) {
                 $methodName = $key;
                 $methodName[0] = strtoupper($methodName[0]);
@@ -800,6 +818,8 @@
         }
 
         public function getSetterMethod($key, $die = true) {
+            if ($this->genericEntity) return "set{$key}";
+
             foreach (['set','add','put'] as $prefix) {
                 $methodName = $key;
                 $methodName[0] = strtoupper($methodName[0]);

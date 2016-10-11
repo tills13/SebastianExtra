@@ -46,15 +46,15 @@
             $this->repositoryStore = new Collection();
             $this->transformers = new Collection();
 
+            $cm = $context->getCacheManager();
+            $this->entityStore = $cm->getDriver('default');
+
             // volatile storage to keep objects until the FPM process dies i.e. per Request
             if (EntityManager::$_objectReferenceCache == null) {
-                EntityManager::$_objectReferenceCache = new CacheManager(
-                    $this->context,
-                    new Configuration([
-                        'driver' => CacheManager::ARRAY_DRIVER,
-                        'logging' => true
-                    ])
-                );
+                EntityManager::$_objectReferenceCache = $cm->getDriver('_orc', [
+                    'driver' => CacheManager::ARRAY_DRIVER,
+                    'logging' => true
+                ]);
             }
 
             $this->addTransformer(new DatetimeTransformer());
@@ -371,6 +371,10 @@
 
         public function mapColumnToField($entity, $column) {
             
+        }
+
+        public function getEntityCache() {
+            return $this->entityStore;
         }
 
         public function getObjectReferenceCache() {
