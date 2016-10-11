@@ -10,6 +10,7 @@
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Database\Query\Expression\Expression;
     use Sebastian\Core\Database\Query\Expression\ExpressionBuilder;
+    use Sebastian\Core\Database\Query\Part\DirectionalJoin;
     use Sebastian\Core\Database\Query\Part\Join;
     use Sebastian\Core\Database\Query\QueryFactory;
     use Sebastian\Core\Exception\SebastianException;
@@ -138,16 +139,15 @@
             $where = $where ?: [];
 
             $em = $this->em; // convenience
-            $qf = QueryFactory::getFactory();
+            $qb = $em->getQueryBuilder();
             $ef = new ExpressionBuilder();
 
             $keys = array_map(function($field) use ($em) {
                 return $em->mapFieldToColumn($this->entity, $field);
             }, $this->keys);
 
-            $qf = $qf->select($keys)->from([
-                $this->aliases[0] => $this->getTable()
-            ]);
+            $qb = $qb->select($keys)
+                     ->from($this->getTable(), $this->aliases[0]);
 
             $expression = null;
 
@@ -197,22 +197,21 @@
                 else $expression = $tempExpr;
             }
 
-            if ($expression) $qf = $qf->where($expression);
+            if ($expression) $qb->where($expression);
 
             if ($options && count($options) != 0) {
-                if (isset($options['limit'])) $qf = $qf->limit($options['limit']);
-                if (isset($options['offset'])) $qf = $qf->offset($options['offset']);
+                if (isset($options['limit'])) $qb->limit($options['limit']);
+                if (isset($options['offset'])) $qb->offset($options['offset']);
                 if (isset($options['orderBy'])) {
                     foreach ($options['orderBy'] as $field => $direction) {
                         $column = $this->em->mapFieldToColumn($this->entity, $field);
-                        $column = "{$this->aliases[0]}.{$column}";
-                        $qf = $qf->orderBy($column, $direction);
+                        $qb->orderBy("{$this->aliases[0]}.{$column}", $direction);
                     }
                 }
             }
 
-            $query = $qf->getQuery();
-            $result = $this->connection->execute($query, $query->getBinds());
+            $query = $qb->getQuery();
+            $result = $this->connection->execute($query, $query->getBinds(), $query->getBindTypes());
             $results = $result->fetchAll() ?: [];
 
             $localFields = $em->getLocalFields($this->entity);
@@ -249,7 +248,7 @@
                 $params = [ $this->keys[0] => $params ];
             }
 
-            $qf = QueryFactory::getFactory();
+            $qb = $this->em->getQueryBuilder();
             $ef = new ExpressionBuilder();
 
             if (count(array_intersect($this->keys, array_keys($params))) != count($this->keys)) {
@@ -262,7 +261,6 @@
             $orcKey = $this->orc->generateKey($skeleton);
 
             if ($this->orc->isCached($orcKey)) {
-                //$this->logger->info("hit _orc with {$orcKey}", "repo_log");
                 return $this->orc->load($orcKey);
             } else {
                 $this->orc->cache($orcKey, $skeleton);
@@ -274,8 +272,8 @@
                 return $this->cm->load($cmKey);
             }
 
-            $qf = $qf->select($this->columns)
-                     ->from([$this->aliases[0] => $this->getTable()]);
+            $qb = $qb->select($this->columns)
+                     ->from($this->getTable(), $this->aliases[0]);
 
             foreach ($this->joins as $field => $join) {
                 $fieldConfig = $this->fields->sub($field);
@@ -323,7 +321,7 @@
                 }
 
                 $alias = $this->aliases[$field];
-                $qf = $qf->join(Join::TYPE_LEFT, [$alias => $table], $expression);
+                $qb->directedJoin(DirectionalJoin::DIRECTION_LEFT, [$alias => $table], $expression);
 
                 /*if ($join->has('order_by')) {
                     $orderBy = $join->get('order_by');
@@ -346,16 +344,19 @@
                 $column = $this->em->mapFieldToColumn($this->entity, $key);
 
                 $expression = $ef->eq("{$this->aliases[0]}.{$column}", ":{$key}");
-                $qf->bind($key, $value);
+                $expression->bindValue($key, $value);
 
                 if ($whereExpression) $whereExpression = $ef->andExpr($whereExpression, $expression);
                 else $whereExpression = $expression;
             }
 
-            $qf = $qf->where($whereExpression);
-            $query = $qf->getQuery();
+            $qf = $qb->where($whereExpression);
+            $query = $qb->getQuery();
+            //print($query);
+            //var_dump($query->getBinds());
+            // die();
 
-            $statement = $this->connection->execute($query, $query->getBinds());
+            $statement = $this->connection->execute($query, $query->getBinds(), $query->getBindTypes());
             $results = $statement->fetchAll();
 
             if ($results) {

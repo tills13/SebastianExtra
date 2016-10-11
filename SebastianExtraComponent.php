@@ -9,6 +9,7 @@
     use Sebastian\Core\Http\Response\Response;
     use Sebastian\Utility\Configuration\Configuration;
 
+    use SebastianExtra\Assets\Listener\OnBeforeRequestListener;
     use SebastianExtra\ORM\EntityManager;
     use SebastianExtra\Form\FormBuilder;
     use SebastianExtra\Templating\SRender;
@@ -43,6 +44,12 @@
                     $event->setResponse($response);
                 }
             });
+
+            $onBeforeRequestListener = Injector::instanceClass(OnBeforeRequestListener::class, [
+                '$config' => $config->sub('assets', [])
+            ]);
+
+            EventBus::register(Event::PRE_REQUEST, [$onBeforeRequestListener, 'onBeforeRequest']);
         }
 
         private function setupFormTemplatingMacros() {

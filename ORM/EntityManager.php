@@ -6,6 +6,7 @@
 
     use Sebastian\Core\Cache\CacheManager;
     use Sebastian\Core\Context\ContextInterface;
+    use Sebastian\Core\Database\Query\QueryBuilder;
     use Sebastian\Core\Database\Query\Expression\ExpressionBuilder;
     use Sebastian\Core\Exception\SebastianException;
     use Sebastian\Core\DependencyInjection\Injector;
@@ -377,10 +378,19 @@
         }
 
         public function expr() {
+            return $this->getExpressionBuilder();
+        }
+
+        public function getExpressionBuilder() {
             return new ExpressionBuilder();
+            //return new ExpressionBuilder($this);
+        }
+
+        public function query() {
+            return $this->getQueryBuilder();
         }
 
         public function getQueryBuilder() {
-            return new QueryBuilder($this);
+            return $this->getConnection()->getQueryBuilder();
         }
     }
