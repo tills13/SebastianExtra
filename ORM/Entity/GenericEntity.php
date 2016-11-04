@@ -32,7 +32,7 @@
         }
 
         public function __debugInfo() {
-            return $this->_fields;
+            return $this->_fields ?? [];
         }
 
         protected function shouldValidate() {

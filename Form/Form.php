@@ -100,6 +100,15 @@
 
         public function getData() {
             if ($this->entity) return $this->entity;
+            else {
+                $data = [];
+
+                foreach ($this->getFields() as $name => $field) {
+                    $data[$name] = $field->getValue() ?? $field->getData();
+                }
+            }
+
+            return $data;
             // todo serialize form
         }
 

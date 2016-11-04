@@ -368,9 +368,6 @@
 
             $qf = $qb->where($whereExpression);
             $query = $qb->getQuery();
-            //print($query);
-            //var_dump($query->getBinds());
-            // die();
 
             $statement = $this->connection->execute($query, $query->getBinds(), $query->getBindTypes());
             $results = $statement->fetchAll();
@@ -485,7 +482,7 @@
             
             // persist it in the orc and in the lt cache
             $this->orc->cache($orcKey, $skeleton);
-            $this->entityCache->cache(null, $skeleton);
+            $this->entityCache->cache($orcKey, $skeleton);
 
             return clone $skeleton; // necessary to "sever" the object from the reference cache
         }

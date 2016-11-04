@@ -32,12 +32,12 @@
             $this->config->extend([]);
 
             $this->loader = new YamlLoader($context);
-            $this->cacheManager = $context->getCacheManager();
+            $this->cache = $context->getCacheManager()
+                ->getDriver('default');
         }
 
         public function addFieldType($type, $class) {
-            if (isset(self::$fieldTypes[$type]) && !$this->config->get('allow_field_override', false)) {
-            } else {
+            if (!isset(self::$fieldTypes[$type]) || $this->config->get('allow_field_override', false)) {
                 self::$fieldTypes[$type] = $class;
             }
         }
@@ -124,8 +124,8 @@
         }
 
         public function load($filename, array $defaults = []) {
-            if ($this->cacheManager && $this->cacheManager->isCached($filename)) {
-                return $this->cacheManager->load($filename);
+            if ($this->cache && $this->cache->isCached($filename)) {
+                return $this->cache->load($filename);
             }
 
             $mConfig = $this->loader->load($filename, 'forms'); // todo validate response
@@ -199,8 +199,8 @@
         }
 
         public function getForm() {
-            if ($this->cacheManager) {
-                
+            if ($this->cache) {
+                $this->cache->cache($this->form->getName(), $this->form);
             }
 
             return $this->form;

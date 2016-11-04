@@ -24,7 +24,7 @@
                 return $component->getResourceUri('views', true);
             }, $components));
 
-            Injector::registerByClass($context->templating);            
+            Injector::registerByClass($context->templating);
 
             if ($config->get('orm.enabled', false)) {
                 $context->entityManager = new EntityManager($context, $config->sub('orm', []));
@@ -45,11 +45,11 @@
                 }
             });
 
-            $onBeforeRequestListener = Injector::instanceClass(OnBeforeRequestListener::class, [
-                '$config' => $config->sub('assets', [])
-            ]);
+            //$onBeforeRequestListener = Injector::instanceClass(OnBeforeRequestListener::class, [
+                //'$config' => $config->sub('assets', [])
+            //]);
 
-            EventBus::register(Event::PRE_REQUEST, [$onBeforeRequestListener, 'onBeforeRequest']);
+            //EventBus::register(Event::PRE_REQUEST, [$onBeforeRequestListener, 'onBeforeRequest']);
         }
 
         private function setupFormTemplatingMacros() {
